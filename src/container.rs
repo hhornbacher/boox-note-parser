@@ -4,6 +4,7 @@ use zip::{ZipArchive, read::ZipFile};
 
 use crate::error::{Error, Result};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainerType {
     SingleNote,
     MultiNote,
@@ -16,8 +17,8 @@ pub struct Container<R: std::io::Read + std::io::Seek> {
 }
 
 impl<R: std::io::Read + std::io::Seek> Container<R> {
-    pub fn open(file: R) -> Result<Self> {
-        let mut archive = ZipArchive::new(file).expect("Failed to open zip archive");
+    pub fn open(reader: R) -> Result<Self> {
+        let mut archive = ZipArchive::new(reader).expect("Failed to open zip archive");
 
         let first_file = archive.by_index(0)?.name().to_string();
         let first_file_path = Path::new(&first_file);
