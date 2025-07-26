@@ -13,12 +13,15 @@ macro_rules! implement_uuid {
             }
 
             pub fn from_byte_str(s: &[u8]) -> crate::error::Result<Self> {
-                let s = std::str::from_utf8(s).map_err(|e| crate::error::Error::UuidInvalidUtf8(e))?;
+                let s =
+                    std::str::from_utf8(s).map_err(|e| crate::error::Error::UuidInvalidUtf8(e))?;
                 Ok(Self(uuid::Uuid::parse_str(s)?))
             }
+        }
 
-            pub fn to_string(&self) -> String {
-                self.0.to_string()
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0.to_string())
             }
         }
     };
