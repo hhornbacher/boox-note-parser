@@ -1,4 +1,7 @@
-use crate::{id::NoteId, utils::{convert_timestamp_to_datetime, parse_json}};
+use crate::{
+    id::NoteId,
+    utils::{convert_timestamp_to_datetime, parse_json},
+};
 use chrono::{DateTime, Utc};
 use json::*;
 
@@ -32,6 +35,9 @@ pub struct NoteMetadata {
 
 impl NoteMetadata {
     pub fn from_protobuf(note: &protobuf::NoteMetadata) -> crate::error::Result<Self> {
+        let fix_regex = regex::Regex::new(r"(\d+):").unwrap();
+        let fixed_pen_settings_json = fix_regex.replace_all(&note.pen_settings_json, "\"$1\":");
+
         Ok(Self {
             note_id: NoteId::from_str(&note.note_id)?,
             created: convert_timestamp_to_datetime(note.created)?,
@@ -40,7 +46,7 @@ impl NoteMetadata {
             flag: note.flag,
             pen_width: note.pen_width,
             scale_factor: note.scale_factor,
-            pen_settings: parse_json(&note.pen_settings_json)?,
+            pen_settings: parse_json(&fixed_pen_settings_json)?,
             canvas_state: parse_json(&note.canvas_state_json)?,
             background_config: parse_json(&note.background_config_json)?,
             device_info: parse_json(&note.device_info_json)?,
@@ -60,7 +66,6 @@ impl NoteMetadata {
         })
     }
 }
-
 
 mod json {
     use std::collections::HashMap;
