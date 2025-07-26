@@ -30,3 +30,6 @@ macro_rules! implement_uuid {
 implement_uuid!(NoteId);
 implement_uuid!(VirtualPageId);
 implement_uuid!(VirtualDocId);
+implement_uuid!(ShapeId);
+implement_uuid!(StrokeId);
+implement_uuid!(PageModelId);

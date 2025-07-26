@@ -10,3 +10,11 @@ pub struct Dimensions {
     pub empty: bool,
     pub stability: u32,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Layer {
+    pub id: u32,
+    pub lock: bool,
+    pub show: bool,
+}

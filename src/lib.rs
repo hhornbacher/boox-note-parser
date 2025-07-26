@@ -12,6 +12,8 @@ mod note_tree;
 mod utils;
 mod virtual_doc;
 mod virtual_page;
+mod shape;
+mod page_model;
 mod json;
 
 pub mod error;
