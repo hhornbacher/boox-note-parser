@@ -24,14 +24,18 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
 
         let mut note_name_map = HashMap::new();
 
-        if *container.container_type() == container::ContainerType::MultiNote {
-            let note_tree = NoteTree::read(container.get_file("note_tree")?)?;
+
+            let note_tree = if *container.container_type() == container::ContainerType::MultiNote {
+                NoteTree::read(container.get_file("note_tree")?)?
+            } else {
+                NoteTree::read(container.get_file("note/pb/note_info")?)?
+            };
 
             for note in note_tree.notes {
                 let note_metadata = NoteMetadata::from_protobuf(&note)?;
                 note_name_map.insert(note_metadata.note_id, note_metadata.name);
             }
-        }
+        
 
         println!("Note name map: {:#?}", note_name_map);
 
