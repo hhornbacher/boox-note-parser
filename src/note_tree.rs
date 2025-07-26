@@ -7,7 +7,7 @@ pub struct NoteMetadata {
     pub note_id: NoteId,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
-    pub note_name: String,
+    pub name: String,
     pub flag: u32,
     pub pen_width: f32,
     pub scale_factor: f32,
@@ -31,12 +31,12 @@ pub struct NoteMetadata {
 }
 
 impl NoteMetadata {
-    pub fn from_protobuf(note: protobuf::NoteMetadata) -> crate::error::Result<Self> {
+    pub fn from_protobuf(note: &protobuf::NoteMetadata) -> crate::error::Result<Self> {
         Ok(Self {
             note_id: NoteId::from_str(&note.note_id)?,
             created: convert_timestamp_to_datetime(&note)?,
             modified: convert_timestamp_to_datetime(&note)?,
-            note_name: note.note_name,
+            name: note.note_name.clone(),
             flag: note.flag,
             pen_width: note.pen_width,
             scale_factor: note.scale_factor,
@@ -50,11 +50,11 @@ impl NoteMetadata {
             reserved_pages: serde_json::from_str(&note.reserved_pages_json)?,
             canvas_width: note.canvas_width,
             canvas_height: note.canvas_height,
-            location: note.location,
+            location: note.location.clone(),
             has_share_section: note.has_share_section,
             stroke_data_len: note.stroke_data_len,
             has_share_user: note.has_share_user,
-            share_user: note.share_user,
+            share_user: note.share_user.clone(),
             has_json7: note.has_json7,
             detached_pages: serde_json::from_str(&note.detached_pages_json)?,
         })
@@ -263,7 +263,7 @@ pub mod protobuf {
     }
 
     impl NoteTree {
-        pub fn read(mut reader: impl std::io::Read + std::io::Seek) -> Result<Self> {
+        pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
             Ok(NoteTree::decode(&buf[..])?)

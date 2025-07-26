@@ -64,7 +64,7 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
             .collect()
     }
 
-    pub fn get_file(&mut self, path: &str) -> Result<ZipFile<R>> {
+    pub fn get_file(&mut self, path: &str) -> Result<impl std::io::Read> {
         let file_path = self.get_file_path(path);
         self.archive.by_name(&file_path).map_err(Error::Zip)
     }
