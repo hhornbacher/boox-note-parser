@@ -48,4 +48,48 @@ mod json {
     }
 }
 
-mod protobuf {}
+mod protobuf {
+    use prost::Message;
+
+    #[derive(Clone, PartialEq, Message)]
+    pub struct ShapeContainer {
+        #[prost(message, repeated, tag = "1")]
+        pub shape: Vec<Shape>,
+    }
+
+    impl ShapeContainer {
+        pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+            let mut buf = Vec::new();
+            reader.read_to_end(&mut buf)?;
+            Ok(ShapeContainer::decode(&buf[..])?)
+        }
+    }
+
+    #[derive(Clone, PartialEq, Message)]
+    pub struct Shape {
+        #[prost(string, tag = "1")]
+        pub uuid: String,
+        #[prost(uint64, tag = "2")]
+        pub created: u64,
+        #[prost(uint64, tag = "3")]
+        pub modified: u64,
+        #[prost(sint64, tag = "4")]
+        pub sentinel_i64: i64,
+        #[prost(float, tag = "5")]
+        pub stroke_width: f32,
+        #[prost(string, tag = "7")]
+        pub bbox_json: String,
+        #[prost(string, tag = "11")]
+        pub render_scale_json: String,
+        #[prost(sint64, tag = "12")]
+        pub z_order: i64,
+        #[prost(string, tag = "16")]
+        pub related_uuid: String,
+        #[prost(string, tag = "17")]
+        pub line_style_json: String,
+        #[prost(string, tag = "18")]
+        pub another_uuid: String,
+        #[prost(string, tag = "21")]
+        pub empty_array_json: String,
+    }
+}
