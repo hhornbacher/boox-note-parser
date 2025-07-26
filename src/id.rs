@@ -28,3 +28,5 @@ macro_rules! implement_uuid {
 }
 
 implement_uuid!(NoteId);
+implement_uuid!(VirtualPageId);
+implement_uuid!(VirtualDocId);

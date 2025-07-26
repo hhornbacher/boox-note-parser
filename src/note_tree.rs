@@ -73,6 +73,8 @@ mod json {
     use serde::Deserialize;
     use uuid::Uuid;
 
+    use crate::json::Dimensions;
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PenSettings {
@@ -237,17 +239,6 @@ mod json {
         pub lock: bool,
         pub show: bool,
     }
-
-    #[derive(Debug, Clone, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Dimensions {
-        pub top: f32,
-        pub right: f32,
-        pub bottom: f32,
-        pub left: f32,
-        pub empty: bool,
-        pub stability: u32,
-    }
 }
 
 pub mod protobuf {
@@ -286,21 +277,21 @@ pub mod protobuf {
         #[prost(float, tag = "10")]
         pub scale_factor: f32,
         #[prost(string, tag = "11")]
-        pub pen_settings_json: String, // Formerly json1
+        pub pen_settings_json: String, 
         #[prost(string, tag = "12")]
-        pub canvas_state_json: String, // Formerly json2
+        pub canvas_state_json: String, 
         #[prost(string, tag = "13")]
-        pub background_config_json: String, // Formerly json3
+        pub background_config_json: String, 
         #[prost(string, tag = "14")]
-        pub device_info_json: String, // Formerly json4
+        pub device_info_json: String, 
         #[prost(uint32, tag = "15")]
         pub fill_color: u32,
         #[prost(uint32, tag = "16")]
         pub pen_type: u32,
         #[prost(string, tag = "20")]
-        pub active_pages_json: String, // Formerly json5
+        pub active_pages_json: String, 
         #[prost(string, tag = "21")]
-        pub reserved_pages_json: String, // Formerly json6
+        pub reserved_pages_json: String, 
         #[prost(float, tag = "22")]
         pub canvas_width: f32,
         #[prost(float, tag = "23")]
@@ -308,16 +299,16 @@ pub mod protobuf {
         #[prost(string, tag = "24")]
         pub location: String,
         #[prost(uint32, tag = "31")]
-        pub has_share_section: u32, // always 1 in the samples
+        pub has_share_section: u32, 
         #[prost(uint32, tag = "32")]
-        pub stroke_data_len: u32, // varies with note complexity
+        pub stroke_data_len: u32, 
         #[prost(uint32, tag = "37")]
-        pub has_share_user: u32, // always 1
+        pub has_share_user: u32, 
         #[prost(string, tag = "39")]
         pub share_user: String,
         #[prost(uint32, tag = "40")]
-        pub has_json7: u32, // always 1
+        pub has_json7: u32, 
         #[prost(string, tag = "44")]
-        pub detached_pages_json: String, // Formerly json7
+        pub detached_pages_json: String, 
     }
 }
