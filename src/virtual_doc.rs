@@ -60,4 +60,12 @@ mod protobuf {
         #[prost(string, tag = "9")]
         pub content_json: String,
     }
+
+    impl VirtualDoc {
+        pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+            let mut buf = Vec::new();
+            reader.read_to_end(&mut buf)?;
+            Ok(VirtualDoc::decode(&buf[..])?)
+        }
+    }
 }
