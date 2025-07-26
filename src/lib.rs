@@ -1,4 +1,6 @@
 mod container;
+mod note_tree;
+mod id;
 
 pub mod error;
 
