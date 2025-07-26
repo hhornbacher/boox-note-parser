@@ -16,4 +16,6 @@ pub enum Error {
     UuidParse(#[from] uuid::Error),
     #[error("UUID invalid UTF8: {0}")]
     UuidInvalidUtf8(std::str::Utf8Error),
+    #[error("Invalid timestamp: {0}")]
+    InvalidTimestamp(u64),
 }
