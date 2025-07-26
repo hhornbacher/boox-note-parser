@@ -6,8 +6,11 @@ pub enum Error {
     InvalidContainerFormat,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),
+    #[error("JSON error: {error} in JSON string: {json_string}")]
+    Json{
+        error: serde_json::Error,
+        json_string: String,
+    },
     #[error("Zip error: {0}")]
     Zip(#[from] zip::result::ZipError),
     #[error("Protobuf decode error: {0}")]

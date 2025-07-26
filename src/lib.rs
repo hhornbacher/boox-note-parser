@@ -1,10 +1,15 @@
 use std::collections::HashMap;
 
-use crate::{error::Result, id::NoteId, note_tree::{protobuf::NoteTree, NoteMetadata}};
+use crate::{
+    error::Result,
+    id::NoteId,
+    note_tree::{NoteMetadata, protobuf::NoteTree},
+};
 
 mod container;
 mod id;
 mod note_tree;
+mod utils;
 
 pub mod error;
 
@@ -21,7 +26,6 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
 
         if *container.container_type() == container::ContainerType::MultiNote {
             let note_tree = NoteTree::read(container.get_file("note_tree")?)?;
-            println!("Note Tree: {:#?}", note_tree);
 
             for note in note_tree.notes {
                 let note_metadata = NoteMetadata::from_protobuf(&note)?;
@@ -29,7 +33,12 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
             }
         }
 
-        Ok(Self { container, note_name_map })
+        println!("Note name map: {:#?}", note_name_map);
+
+        Ok(Self {
+            container,
+            note_name_map,
+        })
     }
 
     pub fn container_type(&self) -> &container::ContainerType {

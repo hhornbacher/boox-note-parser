@@ -1,4 +1,4 @@
-use crate::id::NoteId;
+use crate::{id::NoteId, utils::{convert_timestamp_to_datetime, parse_json}};
 use chrono::{DateTime, Utc};
 use json::*;
 
@@ -34,20 +34,20 @@ impl NoteMetadata {
     pub fn from_protobuf(note: &protobuf::NoteMetadata) -> crate::error::Result<Self> {
         Ok(Self {
             note_id: NoteId::from_str(&note.note_id)?,
-            created: convert_timestamp_to_datetime(&note)?,
-            modified: convert_timestamp_to_datetime(&note)?,
+            created: convert_timestamp_to_datetime(note.created)?,
+            modified: convert_timestamp_to_datetime(note.modified)?,
             name: note.note_name.clone(),
             flag: note.flag,
             pen_width: note.pen_width,
             scale_factor: note.scale_factor,
-            pen_settings: serde_json::from_str(&note.pen_settings_json)?,
-            canvas_state: serde_json::from_str(&note.canvas_state_json)?,
-            background_config: serde_json::from_str(&note.background_config_json)?,
-            device_info: serde_json::from_str(&note.device_info_json)?,
+            pen_settings: parse_json(&note.pen_settings_json)?,
+            canvas_state: parse_json(&note.canvas_state_json)?,
+            background_config: parse_json(&note.background_config_json)?,
+            device_info: parse_json(&note.device_info_json)?,
             fill_color: note.fill_color,
             pen_type: note.pen_type,
-            active_pages: serde_json::from_str(&note.active_pages_json)?,
-            reserved_pages: serde_json::from_str(&note.reserved_pages_json)?,
+            active_pages: parse_json(&note.active_pages_json)?,
+            reserved_pages: parse_json(&note.reserved_pages_json)?,
             canvas_width: note.canvas_width,
             canvas_height: note.canvas_height,
             location: note.location.clone(),
@@ -56,17 +56,11 @@ impl NoteMetadata {
             has_share_user: note.has_share_user,
             share_user: note.share_user.clone(),
             has_json7: note.has_json7,
-            detached_pages: serde_json::from_str(&note.detached_pages_json)?,
+            detached_pages: parse_json(&note.detached_pages_json)?,
         })
     }
 }
 
-fn convert_timestamp_to_datetime(
-    note: &protobuf::NoteMetadata,
-) -> Result<DateTime<Utc>, crate::error::Error> {
-    DateTime::<Utc>::from_timestamp_millis(note.created as i64)
-        .ok_or_else(|| crate::error::Error::InvalidTimestamp(note.created))
-}
 
 mod json {
     use std::collections::HashMap;
@@ -77,8 +71,8 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PenSettings {
-        pub fill_color: u32,
-        pub graphics_shape_color: u32,
+        pub fill_color: i32,
+        pub graphics_shape_color: i32,
         pub graphics_shape_type: u8,
         pub normal_pen_shape_type: u8,
         pub pen_line_style: PenLineStyle,
@@ -111,7 +105,7 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct QuickPen {
-        pub color: u32,
+        pub color: i32,
         pub id: String,
         pub type_: u8,
         pub width: f32,
