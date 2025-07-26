@@ -251,7 +251,7 @@ mod json {
     }
 }
 
-mod protobuf {
+pub mod protobuf {
     use prost::Message;
 
     use crate::error::Result;
@@ -263,7 +263,7 @@ mod protobuf {
     }
 
     impl NoteTree {
-        pub fn parse(mut reader: impl std::io::Read + std::io::Seek) -> Result<Self> {
+        pub fn read(mut reader: impl std::io::Read + std::io::Seek) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
             Ok(NoteTree::decode(&buf[..])?)
