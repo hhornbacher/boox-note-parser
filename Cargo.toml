@@ -1,7 +1,15 @@
 [package]
+authors = ["Harry Hornbacher <dev@harry-hornbacher.de>"]
+edition = "2024"
 name = "boox-note-parser"
 version = "0.1.0"
-edition = "2024"
-authors = ["Harry Hornbacher <dev@harry-hornbacher.de>"]
 
 [dependencies]
+byteorder = "1.5.0"
+chrono = {version = "0.4.41", features = ["serde"]}
+log = "0.4.27"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0.141"
+thiserror = "2.0.12"
+uuid = {version = "1.17.0", features = ["serde"]}
+zip = "4.3.0"
