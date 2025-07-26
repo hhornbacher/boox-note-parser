@@ -1,0 +1,7 @@
+[package]
+name = "boox-note-parser"
+version = "0.1.0"
+edition = "2024"
+authors = ["Harry Hornbacher <dev@harry-hornbacher.de>"]
+
+[dependencies]
