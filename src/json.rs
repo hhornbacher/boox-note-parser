@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::id::LayerId;
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Dimensions {
@@ -26,7 +28,7 @@ impl Dimensions {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Layer {
-    pub id: u32,
+    pub id: LayerId,
     pub lock: bool,
     pub show: bool,
 }
