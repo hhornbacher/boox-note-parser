@@ -1,12 +1,12 @@
 use crate::{
-    id::VirtualPageUuid,
+    id::{PageUuid},
     json::Dimensions,
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
 pub struct VirtualPage {
-    pub virtual_page_id: VirtualPageUuid,
+    pub page_id: PageUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
     pub zoom_scale: f32,
@@ -21,7 +21,7 @@ pub struct VirtualPage {
 impl VirtualPage {
     pub fn from_protobuf(page: &protobuf::VirtualPage) -> crate::error::Result<Self> {
         Ok(Self {
-            virtual_page_id: VirtualPageUuid::from_str(&page.uuid)?,
+            page_id: PageUuid::from_str(&page.uuid)?,
             created: convert_timestamp_to_datetime(page.created)?,
             modified: convert_timestamp_to_datetime(page.modified)?,
             zoom_scale: page.zoom_scale,
@@ -36,7 +36,7 @@ impl VirtualPage {
 
     pub fn print(&self, indent: usize) {
         let indent_str = " ".repeat(indent);
-        println!("{}Virtual Page ID: {}", indent_str, self.virtual_page_id);
+        println!("{}Page ID: {}", indent_str, self.page_id);
         println!("{}Created: {}", indent_str, self.created);
         println!("{}Modified: {}", indent_str, self.modified);
         println!("{}Zoom Scale: {}", indent_str, self.zoom_scale);

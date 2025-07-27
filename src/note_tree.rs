@@ -97,7 +97,7 @@ mod json {
     use serde::Deserialize;
     use uuid::Uuid;
 
-    use crate::{id::{LayerId, PenId}, json::{Dimensions, Layer}};
+    use crate::{id::{LayerId, PageUuid, PenId}, json::{Dimensions, Layer}};
 
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -216,7 +216,7 @@ mod json {
         pub canvas_expand_type: String,
         pub cover_page_id: String,
         pub default_page_rect: Dimensions,
-        pub page_info_map: HashMap<String, PageInfo>,
+        pub page_info_map: HashMap<PageUuid, PageInfo>,
         pub zoom_info: ZoomInfo,
     }
 
@@ -326,7 +326,7 @@ mod json {
         #[serde(rename = "docBKGround")]
         pub document_background: DocBackground,
         #[serde(rename = "pageBKGroundMap")]
-        pub page_backgrounds: HashMap<Uuid, PageBackground>,
+        pub page_backgrounds: HashMap<PageUuid, PageBackground>,
         #[serde(rename = "useDocBKGround")]
         pub use_document_background: bool,
     }

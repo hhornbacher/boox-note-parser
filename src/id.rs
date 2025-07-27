@@ -46,6 +46,7 @@ implement_uuid!(VirtualPageUuid);
 implement_uuid!(VirtualDocUuid);
 implement_uuid!(ShapeUuid);
 implement_uuid!(StrokeUuid);
+implement_uuid!(PageUuid);
 implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
 implement_uuid!(TemplateUuid);

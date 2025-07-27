@@ -1,5 +1,5 @@
 use crate::{
-    id::{TemplateUuid, VirtualDocUuid},
+    id::{PageUuid, TemplateUuid, VirtualDocUuid},
     utils::{convert_timestamp_to_datetime, parse_json},
     virtual_doc::json::Content,
 };
@@ -9,7 +9,7 @@ pub struct VirtualDoc {
     pub virtual_doc_id: VirtualDocUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
-    pub template_id: TemplateUuid,
+    pub page_id: PageUuid,
     pub stability: f32,
     pub content: Content,
 }
@@ -20,7 +20,7 @@ impl VirtualDoc {
             virtual_doc_id: VirtualDocUuid::from_str(&doc.uuid)?,
             created: convert_timestamp_to_datetime(doc.created)?,
             modified: convert_timestamp_to_datetime(doc.modified)?,
-            template_id: TemplateUuid::from_str(&doc.template_uuid)?,
+            page_id: PageUuid::from_str(&doc.template_uuid)?,
             stability: doc.stability,
             content: parse_json(&doc.content_json)?,
         })
@@ -31,7 +31,7 @@ impl VirtualDoc {
         println!("{}Virtual Doc ID: {}", indent_str, self.virtual_doc_id);
         println!("{}Created: {}", indent_str, self.created);
         println!("{}Modified: {}", indent_str, self.modified);
-        println!("{}Template UUID: {}", indent_str, self.template_id);
+        println!("{}Page ID: {}", indent_str, self.page_id);
         println!("{}Stability: {}", indent_str, self.stability);
         println!("{}Content: {:?}", indent_str, self.content);
     }
