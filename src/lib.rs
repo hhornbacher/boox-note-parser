@@ -53,4 +53,8 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
     pub fn list_notes(&self) -> HashMap<NoteId, String> {
         self.note_metadata_map.iter().map(|(id, metadata)| (*id, metadata.name.clone())).collect()
     }
+
+    pub fn get_note_metadata(&self, note_id: &NoteId) -> Option<&NoteMetadata> {
+        self.note_metadata_map.get(note_id)
+    }
 }
