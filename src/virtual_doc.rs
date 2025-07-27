@@ -1,13 +1,15 @@
-use uuid::Uuid;
-
-use crate::{id::VirtualDocUuid, utils::{convert_timestamp_to_datetime, parse_json}, virtual_doc::json::Content};
+use crate::{
+    id::{TemplateUuid, VirtualDocUuid},
+    utils::{convert_timestamp_to_datetime, parse_json},
+    virtual_doc::json::Content,
+};
 
 #[derive(Debug, Clone)]
 pub struct VirtualDoc {
     pub virtual_doc_id: VirtualDocUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
-    pub template_uuid: Uuid,
+    pub template_id: TemplateUuid,
     pub stability: f32,
     pub content: Content,
 }
@@ -18,11 +20,20 @@ impl VirtualDoc {
             virtual_doc_id: VirtualDocUuid::from_str(&doc.uuid)?,
             created: convert_timestamp_to_datetime(doc.created)?,
             modified: convert_timestamp_to_datetime(doc.modified)?,
-            template_uuid: uuid::Uuid::parse_str(&doc.template_uuid)
-                .map_err(|e| crate::error::Error::UuidParse(e))?,
+            template_id: TemplateUuid::from_str(&doc.template_uuid)?,
             stability: doc.stability,
             content: parse_json(&doc.content_json)?,
         })
+    }
+
+    pub fn print(&self, indent: usize) {
+        let indent_str = " ".repeat(indent);
+        println!("{}Virtual Doc ID: {}", indent_str, self.virtual_doc_id);
+        println!("{}Created: {}", indent_str, self.created);
+        println!("{}Modified: {}", indent_str, self.modified);
+        println!("{}Template UUID: {}", indent_str, self.template_id);
+        println!("{}Stability: {}", indent_str, self.stability);
+        println!("{}Content: {:?}", indent_str, self.content);
     }
 }
 
@@ -42,7 +53,7 @@ mod json {
     }
 }
 
-mod protobuf {
+pub mod protobuf {
     use prost::Message;
 
     #[derive(Clone, PartialEq, Message)]
