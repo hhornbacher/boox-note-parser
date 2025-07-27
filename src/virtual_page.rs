@@ -52,13 +52,13 @@ impl VirtualPage {
     }
 }
 
-mod protobuf {
+pub mod protobuf {
     use prost::Message;
 
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualPageContainer {
-        #[prost(message, optional, tag = "1")]
-        pub virtual_page: Option<VirtualPage>,
+        #[prost(message, required, tag = "1")]
+        pub virtual_page: VirtualPage,
     }
 
     impl VirtualPageContainer {
