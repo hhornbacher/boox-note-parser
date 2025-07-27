@@ -21,11 +21,15 @@ macro_rules! implement_uuid {
             pub fn to_simple_string(&self) -> String {
                 self.0.simple().to_string()
             }
+
+            pub fn to_hyphenated_string(&self) -> String {
+                self.0.hyphenated().to_string()
+            }
         }
 
         impl std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0.to_string())
+                write!(f, "{}({})", stringify!($name), self.0.to_string())
             }
         }
 
@@ -70,7 +74,7 @@ impl std::fmt::Display for PenId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Uuid(uuid) => write!(f, "{}", uuid),
-            Self::Id(id) => write!(f, "{}", id),
+            Self::Id(id) => write!(f, "PenId({})", id),
         }
     }
 }
@@ -101,7 +105,7 @@ impl LayerId {
 
 impl std::fmt::Display for LayerId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "LayerId({})", self.0)
     }
 }
 
