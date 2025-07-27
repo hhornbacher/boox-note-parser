@@ -1,9 +1,9 @@
 use uuid::Uuid;
 
 use crate::{
-    id::{ShapeUuid, StrokeUuid},
+    id::{GroupUuid, ShapeUuid, StrokeUuid},
     json::Dimensions,
-    shape::json::{DisplayScale, LineStyleContainer},
+    shape::json::{DisplayScale, LineStyleContainer}, utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
@@ -18,8 +18,55 @@ pub struct Shape {
     pub z_order: i64,
     pub stroke_id: Option<StrokeUuid>,
     pub line_style: Option<LineStyleContainer>,
-    pub group_id: Uuid,
+    pub group_id: GroupUuid,
     pub points_json: String,
+}
+
+impl Shape {
+    pub fn from_protobuf(shape: protobuf::Shape) ->crate::error::Result<Self> {
+        Ok(Self {
+            shape_id: ShapeUuid::from_str(&shape.uuid)?,
+            created: convert_timestamp_to_datetime(shape.created)?,
+            modified: convert_timestamp_to_datetime(shape.modified)?,
+            sentinel_i64: shape.sentinel_i64,
+            stroke_width: shape.stroke_width,
+            bbox: parse_json(&shape.bbox_json)?,
+            render_scale: parse_json(&shape.render_scale_json)?,
+            z_order: shape.z_order,
+            stroke_id: if shape.stroke_uuid.is_empty() {
+                None
+            } else {
+                Some(StrokeUuid::from_str(&shape.stroke_uuid)?)
+            },
+            line_style: if shape.line_style_json.is_empty() {
+                None
+            } else {
+                Some(parse_json(&shape.line_style_json)?)
+            },
+            group_id: GroupUuid::from_str(&shape.another_uuid)?,
+            points_json: shape.empty_array_json,
+        })
+    }
+
+    pub fn print(&self, indent: usize) {
+        let indent_str = " ".repeat(indent);
+        println!("{}Shape ID: {}", indent_str, self.shape_id);
+        println!("{}Created: {}", indent_str, self.created);
+        println!("{}Modified: {}", indent_str, self.modified);
+        println!("{}Sentinel i64: {}", indent_str, self.sentinel_i64);
+        println!("{}Stroke Width: {}", indent_str, self.stroke_width);
+        println!("{}Bounding Box: {:?}", indent_str, self.bbox);
+        println!("{}Render Scale: {:?}", indent_str, self.render_scale);
+        println!("{}Z-Order: {}", indent_str, self.z_order);
+        if let Some(stroke_id) = &self.stroke_id {
+            println!("{}Stroke ID: {}", indent_str, stroke_id);
+        }
+        if let Some(line_style) = &self.line_style {
+            println!("{}Line Style: {:?}", indent_str, line_style);
+        }
+        println!("{}Group ID: {}", indent_str, self.group_id);
+        println!("{}Points JSON: {}", indent_str, self.points_json);
+    }
 }
 
 mod json {
@@ -84,7 +131,7 @@ mod protobuf {
         #[prost(sint64, tag = "12")]
         pub z_order: i64,
         #[prost(string, tag = "16")]
-        pub related_uuid: String,
+        pub stroke_uuid: String,
         #[prost(string, tag = "17")]
         pub line_style_json: String,
         #[prost(string, tag = "18")]
