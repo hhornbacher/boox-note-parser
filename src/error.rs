@@ -21,4 +21,6 @@ pub enum Error {
     UuidInvalidUtf8(std::str::Utf8Error),
     #[error("Invalid timestamp: {0}")]
     InvalidTimestamp(u64),
+    #[error("Invalid timestamp format: {0}")]
+    InvalidTimestampFormat(String),
 }

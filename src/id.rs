@@ -53,6 +53,7 @@ implement_uuid!(StrokeUuid);
 implement_uuid!(PageUuid);
 implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
+implement_uuid!(GroupUuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PenId {

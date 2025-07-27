@@ -95,13 +95,13 @@ mod json {
     }
 }
 
-mod protobuf {
+pub mod protobuf {
     use prost::Message;
 
     #[derive(Clone, PartialEq, Message)]
     pub struct ShapeContainer {
         #[prost(message, repeated, tag = "1")]
-        pub shape: Vec<Shape>,
+        pub shapes: Vec<Shape>,
     }
 
     impl ShapeContainer {
