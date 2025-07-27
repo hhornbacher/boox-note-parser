@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::Result,
-    id::NoteId,
+    id::NoteUuid,
     note_tree::{NoteMetadata, protobuf::NoteTree},
 };
 
@@ -20,7 +20,7 @@ pub mod error;
 
 pub struct NoteFile<R: std::io::Read + std::io::Seek> {
     container: container::Container<R>,
-    note_metadata_map: HashMap<NoteId, NoteMetadata>,
+    note_metadata_map: HashMap<NoteUuid, NoteMetadata>,
 }
 
 impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
@@ -50,11 +50,24 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
         self.container.container_type()
     }
 
-    pub fn list_notes(&self) -> HashMap<NoteId, String> {
+    pub fn list_notes(&self) -> HashMap<NoteUuid, String> {
         self.note_metadata_map.iter().map(|(id, metadata)| (*id, metadata.name.clone())).collect()
     }
 
-    pub fn get_note_metadata(&self, note_id: &NoteId) -> Option<&NoteMetadata> {
+    pub fn get_note_metadata(&self, note_id: &NoteUuid) -> Option<&NoteMetadata> {
         self.note_metadata_map.get(note_id)
+    }
+
+    pub fn list_virtual_docs(&self) -> Result<Vec<virtual_doc::VirtualDoc>> {
+        let root_path = self.container.root_path();
+        todo!("Implement listing virtual docs in {}", root_path);
+        // let mut virtual_docs = Vec::new();
+        // for file in self.container.list_files()? {
+        //     if file.ends_with(".vdoc") {
+        //         let doc = virtual_doc::protobuf::VirtualDoc::read(self.container.get_file(&file)?)?;
+        //         virtual_docs.push(virtual_doc::VirtualDoc::from_protobuf(&doc)?);
+        //     }
+        // }
+        // Ok(virtual_docs)
     }
 }
