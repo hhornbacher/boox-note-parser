@@ -65,6 +65,30 @@ impl NoteMetadata {
             detached_pages: parse_json(&note.detached_pages_json)?,
         })
     }
+
+    pub fn print(&self, indent: usize) {
+        let indent_str = " ".repeat(indent);
+        println!("{}Note ID: {}", indent_str, self.note_id);
+        println!("{}Created: {}", indent_str, self.created);
+        println!("{}Modified: {}", indent_str, self.modified);
+        println!("{}Name: {}", indent_str, self.name);
+        println!("{}Flag: {:032b}", indent_str, self.flag);
+        println!("{}Pen Width: {}", indent_str, self.pen_width);
+        println!("{}Scale Factor: {:.3}", indent_str, self.scale_factor);
+        println!("{}Fill Color: {:08x}", indent_str, self.fill_color as u32);
+        // Print pen settings
+        println!("{}Pen Settings:", indent_str);
+        self.pen_settings.print(indent + 2);
+        // Print canvas state
+        println!("{}Canvas State:", indent_str);
+        self.canvas_state.print(indent + 2);
+        // Print background config
+        println!("{}Background Config:", indent_str);
+        self.background_config.print(indent + 2);
+        // Print device info
+        println!("{}Device Info:", indent_str);
+        self.device_info.print(indent + 2);
+    }
 }
 
 mod json {
@@ -89,10 +113,46 @@ mod json {
         pub shape_line_style: PenLineStyle,
     }
 
+    impl PenSettings {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Fill Color: {:08x}", indent_str, self.fill_color as u32);
+            println!(
+                "{}Graphics Shape Color: {:08x}",
+                indent_str, self.graphics_shape_color as u32
+            );
+            println!(
+                "{}Graphics Shape Type: {}",
+                indent_str, self.graphics_shape_type
+            );
+            println!(
+                "{}Normal Pen Shape Type: {}",
+                indent_str, self.normal_pen_shape_type
+            );
+            println!("{}Pen Line Style:", indent_str);
+            self.pen_line_style.print(indent + 2);
+            println!("{}Pen Width Map:", indent_str);
+            for (key, value) in &self.pen_width_map {
+                println!("{}  {}: {}", indent_str, key, value);
+            }
+            println!("{}Quick Pen List:", indent_str);
+            self.quick_pen_list.print(indent + 2);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PenLineStyle {
         pub line_style: LineStyle,
+    }
+
+    impl PenLineStyle {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Line Style:", indent_str);
+            println!("{}  Phase: {}", indent_str, self.line_style.phase);
+            println!("{}  Type: {}", indent_str, self.line_style.type_);
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -102,11 +162,30 @@ mod json {
         pub type_: u8,
     }
 
+    impl LineStyle {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Phase: {}", indent_str, self.phase);
+            println!("{}Type: {}", indent_str, self.type_);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct QuickPenList {
         pub quick_pens: Vec<QuickPen>,
         pub selected_id: String,
+    }
+
+    impl QuickPenList {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Selected ID: {}", indent_str, self.selected_id);
+            println!("{}Quick Pens:", indent_str);
+            for quick_pen in &self.quick_pens {
+                quick_pen.print(indent + 2);
+            }
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +197,16 @@ mod json {
         pub width: f32,
     }
 
+    impl QuickPen {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}ID: {}", indent_str, self.id);
+            println!("{}Color: {:08x}", indent_str, self.color as u32);
+            println!("{}Type: {}", indent_str, self.type_);
+            println!("{}Width: {}", indent_str, self.width);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct CanvasState {
@@ -126,6 +215,27 @@ mod json {
         pub default_page_rect: Dimensions,
         pub page_info_map: HashMap<String, PageInfo>,
         pub zoom_info: ZoomInfo,
+    }
+
+    impl CanvasState {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!(
+                "{}Canvas Expand Type: {}",
+                indent_str, self.canvas_expand_type
+            );
+            println!("{}Cover Page ID: {}", indent_str, self.cover_page_id);
+            println!(
+                "{}Default Page Rect: {:?}",
+                indent_str, self.default_page_rect
+            );
+            println!("{}Zoom Info:", indent_str);
+            self.zoom_info.print(indent + 2);
+            println!("{}Page Info Map:", indent_str);
+            for (key, page_info) in &self.page_info_map {
+                println!("{}  {}: {:?}", indent_str, key, page_info);
+            }
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -139,6 +249,21 @@ mod json {
         pub width: u32,
     }
 
+    impl PageInfo {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Current Layer ID: {}", indent_str, self.current_layer_id);
+            println!("{}Height: {}", indent_str, self.height);
+            println!("{}Last Modify Time: {}", indent_str, self.last_modify_time);
+            println!("{}Layer Count: {}", indent_str, self.layer_count);
+            println!("{}Width: {}", indent_str, self.width);
+            println!("{}Layers:", indent_str);
+            for layer in &self.layer_list {
+                layer.print(indent + 2);
+            }
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct ZoomInfo {
@@ -148,6 +273,19 @@ mod json {
         pub view_port_pos: ViewPortPos,
         pub view_port_width: f32,
         pub viewport_scale: f32,
+    }
+
+    impl ZoomInfo {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Fit to Screen: {}", indent_str, self.fit_to_screen);
+            println!("{}Scale Type: {}", indent_str, self.scale_type);
+            println!("{}View Port Height: {}", indent_str, self.view_port_height);
+            println!("{}View Port Width: {}", indent_str, self.view_port_width);
+            println!("{}Viewport Scale: {}", indent_str, self.viewport_scale);
+            println!("{}View Port Position:", indent_str);
+            self.view_port_pos.print(indent + 2);
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -163,6 +301,20 @@ mod json {
         pub y: f32,
     }
 
+    impl ViewPortPos {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Is Empty: {}", indent_str, self.is_empty);
+            println!("{}Pressure: {}", indent_str, self.pressure);
+            println!("{}Size: {}", indent_str, self.size);
+            println!("{}Tilt X: {}", indent_str, self.tilt_x);
+            println!("{}Tilt Y: {}", indent_str, self.tilt_y);
+            println!("{}Timestamp: {}", indent_str, self.timestamp);
+            println!("{}X: {}", indent_str, self.x);
+            println!("{}Y: {}", indent_str, self.y);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct BackgroundConfig {
@@ -176,6 +328,24 @@ mod json {
         pub use_document_background: bool,
     }
 
+    impl BackgroundConfig {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Background Settings:", indent_str);
+            self.background_config.print(indent + 2);
+            println!("{}Document Background:", indent_str);
+            self.document_background.print(indent + 2);
+            println!("{}Page Backgrounds:", indent_str);
+            for (key, page_background) in &self.page_backgrounds {
+                println!("{}  {}: {:?}", indent_str, key, page_background);
+            }
+            println!(
+                "{}Use Document Background: {}",
+                indent_str, self.use_document_background
+            );
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct BackgroundSettings {
@@ -183,6 +353,19 @@ mod json {
         pub as_default: bool,
         pub canvas_auto_expand: bool,
         pub scale_type: u8,
+    }
+
+    impl BackgroundSettings {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Apply All Page: {}", indent_str, self.apply_all_page);
+            println!("{}As Default: {}", indent_str, self.as_default);
+            println!(
+                "{}Canvas Auto Expand: {}",
+                indent_str, self.canvas_auto_expand
+            );
+            println!("{}Scale Type: {}", indent_str, self.scale_type);
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -195,6 +378,19 @@ mod json {
         pub type_: u32,
         pub visible: bool,
         pub width: f32,
+    }
+
+    impl DocBackground {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Cloud: {}", indent_str, self.cloud);
+            println!("{}Global: {}", indent_str, self.global);
+            println!("{}Height: {}", indent_str, self.height);
+            println!("{}Resource Index: {}", indent_str, self.res_index);
+            println!("{}Type: {}", indent_str, self.type_);
+            println!("{}Visible: {}", indent_str, self.visible);
+            println!("{}Width: {}", indent_str, self.width);
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -212,11 +408,35 @@ mod json {
         pub width: f32,
     }
 
+    impl PageBackground {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Cloud: {}", indent_str, self.cloud);
+            println!("{}Global: {}", indent_str, self.global);
+            println!("{}Height: {}", indent_str, self.height);
+            println!("{}Resource ID: {}", indent_str, self.res_id);
+            println!("{}Resource Index: {}", indent_str, self.res_index);
+            println!("{}Title: {}", indent_str, self.title);
+            println!("{}Type: {}", indent_str, self.type_);
+            println!("{}Value: {}", indent_str, self.value);
+            println!("{}Visible: {}", indent_str, self.visible);
+            println!("{}Width: {}", indent_str, self.width);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DeviceInfo {
         pub device_name: String,
         pub size: DeviceDimensions,
+    }
+
+    impl DeviceInfo {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Device Name: {}", indent_str, self.device_name);
+            println!("{}Size: {:?}", indent_str, self.size);
+        }
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -226,10 +446,28 @@ mod json {
         pub height: f32,
     }
 
+    impl DeviceDimensions {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Width: {}", indent_str, self.width);
+            println!("{}Height: {}", indent_str, self.height);
+        }
+    }
+
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PageNameList {
         pub page_name_list: Vec<String>,
+    }
+
+    impl PageNameList {
+        pub fn print(&self, indent: usize) {
+            let indent_str = " ".repeat(indent);
+            println!("{}Page Name List:", indent_str);
+            for page_name in &self.page_name_list {
+                println!("{}  {}", indent_str, page_name);
+            }
+        }
     }
 }
 
