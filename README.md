@@ -9,6 +9,6 @@
 
 ---
 
-`boox-note` provides a pure Rust implementation for reading and interpreting handwritten note data stored in `.note` files on Boox devices.  
+`boox-note-parser` provides a pure Rust implementation for reading and interpreting handwritten note data stored in `.note` files on Boox devices.  
 This format is undocumented and [was reverse-engineered](docs/format.md) to allow open access to user-created content.
 
