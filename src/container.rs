@@ -67,11 +67,15 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
             .collect()
     }
 
-    pub fn get_file(&mut self, path: &str) -> Result<impl std::io::Read> {
+    pub fn get_file_relative(&mut self, path: &str) -> Result<impl std::io::Read> {
         let file_path = self.get_file_path(path);
         self.archive.by_name(&file_path).map_err(Error::Zip)
     }
-    
+
+    pub fn get_file_absolute(&mut self, path: &str) -> Result<impl std::io::Read> {
+        self.archive.by_name(path).map_err(Error::Zip)
+    }
+
     pub fn root_path(&self) -> &str {
         &self.root_path
     }
