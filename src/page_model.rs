@@ -1,11 +1,11 @@
 use crate::{
-    id::PageModelId,
+    id::PageModelUuid,
     json::{Dimensions, Layer}, utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
 pub struct PageModel {
-    pub page_model_id: PageModelId,
+    pub page_model_id: PageModelUuid,
     pub layers: Vec<Layer>,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
@@ -15,7 +15,7 @@ pub struct PageModel {
 impl PageModel {
     pub fn from_protobuf(model: &protobuf::PageModel) -> crate::error::Result<Self> {
         Ok(Self {
-            page_model_id: PageModelId::from_str(&model.uuid)?,
+            page_model_id: PageModelUuid::from_str(&model.uuid)?,
             layers: parse_json(&model.layers_json)?,
             created: convert_timestamp_to_datetime(model.created)?,
             modified: convert_timestamp_to_datetime(model.modified)?,

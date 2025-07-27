@@ -1,10 +1,10 @@
 use uuid::Uuid;
 
-use crate::{id::VirtualDocId, utils::{convert_timestamp_to_datetime, parse_json}, virtual_doc::json::Content};
+use crate::{id::VirtualDocUuid, utils::{convert_timestamp_to_datetime, parse_json}, virtual_doc::json::Content};
 
 #[derive(Debug, Clone)]
 pub struct VirtualDoc {
-    pub virtual_doc_id: VirtualDocId,
+    pub virtual_doc_id: VirtualDocUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
     pub template_uuid: Uuid,
@@ -15,7 +15,7 @@ pub struct VirtualDoc {
 impl VirtualDoc {
     pub fn from_protobuf(doc: &protobuf::VirtualDoc) -> crate::error::Result<Self> {
         Ok(Self {
-            virtual_doc_id: VirtualDocId::from_str(&doc.uuid)?,
+            virtual_doc_id: VirtualDocUuid::from_str(&doc.uuid)?,
             created: convert_timestamp_to_datetime(doc.created)?,
             modified: convert_timestamp_to_datetime(doc.modified)?,
             template_uuid: uuid::Uuid::parse_str(&doc.template_uuid)

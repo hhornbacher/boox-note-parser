@@ -1,5 +1,5 @@
 use crate::{
-    id::NoteId,
+    id::NoteUuid,
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 use chrono::{DateTime, Utc};
@@ -7,7 +7,7 @@ use json::*;
 
 #[derive(Debug, Clone)]
 pub struct NoteMetadata {
-    pub note_id: NoteId,
+    pub note_id: NoteUuid,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
     pub name: String,
@@ -39,7 +39,7 @@ impl NoteMetadata {
         let fixed_pen_settings_json = fix_regex.replace_all(&note.pen_settings_json, "\"$1\":");
 
         Ok(Self {
-            note_id: NoteId::from_str(&note.note_id)?,
+            note_id: NoteUuid::from_str(&note.note_id)?,
             created: convert_timestamp_to_datetime(note.created)?,
             modified: convert_timestamp_to_datetime(note.modified)?,
             name: note.note_name.clone(),
@@ -97,7 +97,7 @@ mod json {
     use serde::Deserialize;
     use uuid::Uuid;
 
-    use crate::json::{Dimensions, Layer};
+    use crate::{id::{LayerId, PenId}, json::{Dimensions, Layer}};
 
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -176,7 +176,7 @@ mod json {
     #[serde(rename_all = "camelCase")]
     pub struct QuickPenList {
         pub quick_pens: Vec<QuickPen>,
-        pub selected_id: String,
+        pub selected_id: PenId,
     }
 
     impl QuickPenList {
@@ -195,7 +195,7 @@ mod json {
     pub struct QuickPen {
         #[serde(deserialize_with = "crate::utils::deserialize_color")]
         pub color: u32,
-        pub id: String,
+        pub id: PenId,
         pub type_: u8,
         pub width: f32,
     }
@@ -244,7 +244,7 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PageInfo {
-        pub current_layer_id: u32,
+        pub current_layer_id: LayerId,
         pub height: u32,
         pub last_modify_time: u64,
         pub layer_count: u32,

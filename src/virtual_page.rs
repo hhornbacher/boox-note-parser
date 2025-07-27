@@ -1,12 +1,12 @@
 use crate::{
-    id::VirtualPageId,
+    id::VirtualPageUuid,
     json::Dimensions,
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
 pub struct VirtualPage {
-    pub virtual_page_id: VirtualPageId,
+    pub virtual_page_id: VirtualPageUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
     pub zoom_scale: f32,
@@ -21,7 +21,7 @@ pub struct VirtualPage {
 impl VirtualPage {
     pub fn from_protobuf(page: &protobuf::VirtualPage) -> crate::error::Result<Self> {
         Ok(Self {
-            virtual_page_id: VirtualPageId::from_str(&page.uuid)?,
+            virtual_page_id: VirtualPageUuid::from_str(&page.uuid)?,
             created: convert_timestamp_to_datetime(page.created)?,
             modified: convert_timestamp_to_datetime(page.modified)?,
             zoom_scale: page.zoom_scale,
@@ -32,6 +32,23 @@ impl VirtualPage {
             template_path: page.template_path.clone(),
             page_number: page.page_number.clone(),
         })
+    }
+
+    pub fn print(&self, indent: usize) {
+        let indent_str = " ".repeat(indent);
+        println!("{}Virtual Page ID: {}", indent_str, self.virtual_page_id);
+        println!("{}Created: {}", indent_str, self.created);
+        println!("{}Modified: {}", indent_str, self.modified);
+        println!("{}Zoom Scale: {}", indent_str, self.zoom_scale);
+        println!("{}Dimensions:", indent_str);
+        self.dimensions.print(indent + 2);
+        println!("{}Layout:", indent_str);
+        self.layout.print(indent + 2);
+        println!("{}Geo:", indent_str);
+        self.geo.print(indent + 2);
+        println!("{}Geo Layout: {}", indent_str, self.geo_layout);
+        println!("{}Template Path: {}", indent_str, self.template_path);
+        println!("{}Page Number: {}", indent_str, self.page_number);
     }
 }
 
