@@ -1,11 +1,10 @@
-# boox-note
+# boox-note-parser
 
 > A Rust library for parsing `.note` files from Onyx Boox e-ink devices.
 
-[![Crates.io](https://img.shields.io/crates/v/boox-note.svg)](https://crates.io/crates/boox-note)
-[![Docs.rs](https://docs.rs/boox-note/badge.svg)](https://docs.rs/boox-note)
-[![CI](https://github.com/yourusername/boox-note/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/boox-note/actions)
-[![License](https://img.shields.io/crates/l/boox-note.svg)](https://github.com/yourusername/boox-note/blob/main/LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/boox-note-parser.svg)](https://crates.io/crates/boox-note-parser)
+[![Docs.rs](https://docs.rs/boox-note-parser/badge.svg)](https://docs.rs/boox-note-parser)
+[![License](https://img.shields.io/crates/l/boox-note-parser.svg)](https://github.com/hhornbacher/boox-note-parser/blob/main/LICENSE)
 
 ---
 
