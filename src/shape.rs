@@ -1,9 +1,8 @@
-use uuid::Uuid;
-
 use crate::{
     id::{GroupUuid, ShapeUuid, StrokeUuid},
     json::Dimensions,
-    shape::json::{DisplayScale, LineStyleContainer}, utils::{convert_timestamp_to_datetime, parse_json},
+    shape::json::{DisplayScale, LineStyleContainer},
+    utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +22,7 @@ pub struct Shape {
 }
 
 impl Shape {
-    pub fn from_protobuf(shape: protobuf::Shape) ->crate::error::Result<Self> {
+    pub fn from_protobuf(shape: protobuf::Shape) -> crate::error::Result<Self> {
         Ok(Self {
             shape_id: ShapeUuid::from_str(&shape.uuid)?,
             created: convert_timestamp_to_datetime(shape.created)?,

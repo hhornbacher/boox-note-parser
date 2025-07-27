@@ -147,10 +147,11 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
             let path_tail = shape_path.rsplit('/').next().unwrap();
             let parts = path_tail.split('#').collect::<Vec<_>>();
             let shape_id = ShapeUuid::from_str(parts[1])?;
-            let timestamp =
-                convert_timestamp_to_datetime(parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
+            let _timestamp = convert_timestamp_to_datetime(
+                parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
                     Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
-                })?);
+                })?,
+            );
 
             let mut buffer = Vec::new();
             {

@@ -95,9 +95,11 @@ mod json {
     use std::collections::HashMap;
 
     use serde::Deserialize;
-    use uuid::Uuid;
 
-    use crate::{id::{LayerId, PageUuid, PenId}, json::{Dimensions, Layer}};
+    use crate::{
+        id::{LayerId, PageUuid, PenId},
+        json::{Dimensions, Layer},
+    };
 
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
