@@ -17,6 +17,10 @@ macro_rules! implement_uuid {
                     std::str::from_utf8(s).map_err(|e| crate::error::Error::UuidInvalidUtf8(e))?;
                 Ok(Self(uuid::Uuid::parse_str(s)?))
             }
+
+            pub fn to_simple_string(&self) -> String {
+                self.0.simple().to_string()
+            }
         }
 
         impl std::fmt::Display for $name {
@@ -44,6 +48,7 @@ implement_uuid!(ShapeUuid);
 implement_uuid!(StrokeUuid);
 implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
+implement_uuid!(TemplateUuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PenId {
