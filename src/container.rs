@@ -47,6 +47,9 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
     }
 
     fn get_file_path(&self, path: &str) -> String {
+        if self.container_type == ContainerType::SingleNote {
+            return path.to_string();
+        }
         format!("{}/{}", self.root_path, path)
     }
 
@@ -56,7 +59,7 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
             .file_names()
             .filter_map(|name| {
                 if name.starts_with(&prefixed_path) && !name.ends_with("/") {
-                    name.to_string().split('/').next().map(|s| s.to_string())
+                    Some(name.to_string())
                 } else {
                     None
                 }
