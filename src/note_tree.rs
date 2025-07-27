@@ -102,8 +102,10 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PenSettings {
-        pub fill_color: i32,
-        pub graphics_shape_color: i32,
+        #[serde(deserialize_with = "crate::utils::deserialize_color")]
+        pub fill_color: u32,
+        #[serde(deserialize_with = "crate::utils::deserialize_color")]
+        pub graphics_shape_color: u32,
         pub graphics_shape_type: u8,
         pub normal_pen_shape_type: u8,
         pub pen_line_style: PenLineStyle,
@@ -116,10 +118,10 @@ mod json {
     impl PenSettings {
         pub fn print(&self, indent: usize) {
             let indent_str = " ".repeat(indent);
-            println!("{}Fill Color: {:08x}", indent_str, self.fill_color as u32);
+            println!("{}Fill Color: {:08x}", indent_str, self.fill_color);
             println!(
                 "{}Graphics Shape Color: {:08x}",
-                indent_str, self.graphics_shape_color as u32
+                indent_str, self.graphics_shape_color
             );
             println!(
                 "{}Graphics Shape Type: {}",
@@ -191,7 +193,8 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct QuickPen {
-        pub color: i32,
+        #[serde(deserialize_with = "crate::utils::deserialize_color")]
+        pub color: u32,
         pub id: String,
         pub type_: u8,
         pub width: f32,
@@ -201,7 +204,7 @@ mod json {
         pub fn print(&self, indent: usize) {
             let indent_str = " ".repeat(indent);
             println!("{}ID: {}", indent_str, self.id);
-            println!("{}Color: {:08x}", indent_str, self.color as u32);
+            println!("{}Color: {:08x}", indent_str, self.color);
             println!("{}Type: {}", indent_str, self.type_);
             println!("{}Width: {}", indent_str, self.width);
         }

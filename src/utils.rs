@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize};
 
 use crate::error::{Error, Result};
 
@@ -12,4 +12,12 @@ pub fn parse_json<T: DeserializeOwned>(json_str: &str) -> Result<T> {
         error: e,
         json_string: json_str.to_string(),
     })
+}
+
+pub fn deserialize_color<'de, D>(deserializer: D) -> std::result::Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let color: i32 = Deserialize::deserialize(deserializer)?;
+    Ok(color as u32)
 }
