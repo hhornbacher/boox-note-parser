@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use zip::{ZipArchive, read::ZipFile};
+use zip::ZipArchive;
 
 use crate::error::{Error, Result};
 
@@ -67,5 +67,9 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
     pub fn get_file(&mut self, path: &str) -> Result<impl std::io::Read> {
         let file_path = self.get_file_path(path);
         self.archive.by_name(&file_path).map_err(Error::Zip)
+    }
+    
+    pub fn root_path(&self) -> &str {
+        &self.root_path
     }
 }
