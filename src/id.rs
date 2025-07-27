@@ -49,7 +49,6 @@ implement_uuid!(StrokeUuid);
 implement_uuid!(PageUuid);
 implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
-implement_uuid!(TemplateUuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PenId {
@@ -92,7 +91,7 @@ impl<'de> serde::Deserialize<'de> for PenId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct  LayerId(u32);
+pub struct LayerId(u32);
 
 impl LayerId {
     pub fn new(id: u32) -> Self {
