@@ -1,10 +1,6 @@
 use std::{fs::File, path::Path};
 
-use boox_note_parser::{
-    Note, NoteFile, error::Result, id::PageUuid, points::PointsFile, shape::Shape,
-    virtual_page::VirtualPage,
-};
-use raqote::{DrawOptions, DrawTarget, Source};
+use boox_note_parser::{Note, NoteFile, id::PageUuid};
 use tracing_subscriber::filter::LevelFilter;
 
 fn main() {
@@ -36,6 +32,9 @@ fn main() {
         let mut note = note_file.get_note(&note_id).unwrap();
         println!("    Created: {}", note.created());
         println!("    Modified: {}", note.modified());
+        println!("    Fill Color: {:08x}", note.fill_color());
+        println!("    Pen Settings Fill Color: {:08x}", note.pen_settings_fill_color());
+        println!("    Pen Settings Graphics Shape Color: {:08x}", note.pen_settings_graphics_shape_color());
 
         let virtual_doc = note.virtual_doc().expect("No virtual doc found for note");
         println!(
@@ -64,7 +63,17 @@ fn list_pages<R: std::io::Read + std::io::Seek>(note: &mut Note<R>, pages: Vec<P
     for page_id in &pages {
         println!("      Page ID: {}", page_id.to_hyphenated_string());
 
-        let page = note.get_page(page_id).expect("Failed to get page");
+        let mut page = note.get_page(page_id).expect("Failed to get page");
+
+        let draw_target = page.render().expect("Failed to render page");
+
+        draw_target
+            .write_png(format!(
+                "{}_{}.png",
+                note.name(),
+                page_id.to_simple_string()
+            ))
+            .expect("Failed to write PNG");
 
         let page_model = page.page_model();
         println!("        Page Model:",);
@@ -88,38 +97,4 @@ fn list_pages<R: std::io::Read + std::io::Seek>(note: &mut Note<R>, pages: Vec<P
             println!("        No virtual page found for this page.");
         }
     }
-}
-
-fn draw_page(virtual_page: &VirtualPage, shapes: &[Shape], points_file: &PointsFile) -> Result<()> {
-    let width = (virtual_page.dimensions.right - virtual_page.dimensions.left) as i32;
-    let height = (virtual_page.dimensions.bottom - virtual_page.dimensions.top) as i32;
-    log::info!("Drawing page with dimensions: {}x{}", width, height);
-    let mut draw_target = DrawTarget::new(width, height);
-
-    draw_target.fill_rect(
-        0.0,
-        0.0,
-        width as f32,
-        height as f32,
-        &Source::Solid(raqote::Color::new(255, 255, 255, 255).into()),
-        &DrawOptions::new(),
-    );
-
-    let mut shapes = shapes.to_vec();
-    shapes.sort_by_key(|shape| shape.z_order);
-
-    for shape in shapes {
-        let stroke_uuid = shape.stroke_id;
-
-        if let Some(stroke) = points_file.get_stroke(&stroke_uuid) {
-            stroke.draw(&mut draw_target)?;
-        } else {
-            log::warn!("No points found for stroke UUID: {}", stroke_uuid);
-        }
-    }
-
-    draw_target
-        .write_png(format!("{}.png", virtual_page.page_id.to_simple_string()))
-        .expect("Failed to write PNG");
-    Ok(())
 }
