@@ -1,5 +1,5 @@
 use crate::{
-    id::{GroupUuid, ShapeUuid, StrokeUuid},
+    id::{ShapeGroupUuid, ShapeUuid, StrokeUuid},
     json::Dimensions,
     shape::json::{DisplayScale, LineStyleContainer},
     utils::{convert_timestamp_to_datetime, parse_json},
@@ -15,9 +15,9 @@ pub struct Shape {
     pub bbox: Dimensions,
     pub render_scale: DisplayScale,
     pub z_order: i64,
-    pub stroke_id: Option<StrokeUuid>,
+    pub stroke_id: StrokeUuid,
     pub line_style: Option<LineStyleContainer>,
-    pub group_id: GroupUuid,
+    pub shape_group_id: ShapeGroupUuid,
     pub points_json: String,
 }
 
@@ -32,17 +32,13 @@ impl Shape {
             bbox: parse_json(&shape.bbox_json)?,
             render_scale: parse_json(&shape.render_scale_json)?,
             z_order: shape.z_order,
-            stroke_id: if shape.stroke_uuid.is_empty() {
-                None
-            } else {
-                Some(StrokeUuid::from_str(&shape.stroke_uuid)?)
-            },
+            stroke_id: StrokeUuid::from_str(&shape.stroke_uuid)?,
             line_style: if shape.line_style_json.is_empty() {
                 None
             } else {
                 Some(parse_json(&shape.line_style_json)?)
             },
-            group_id: GroupUuid::from_str(&shape.another_uuid)?,
+            shape_group_id: ShapeGroupUuid::from_str(&shape.another_uuid)?,
             points_json: shape.empty_array_json,
         })
     }
@@ -57,13 +53,11 @@ impl Shape {
         println!("{}Bounding Box: {:?}", indent_str, self.bbox);
         println!("{}Render Scale: {:?}", indent_str, self.render_scale);
         println!("{}Z-Order: {}", indent_str, self.z_order);
-        if let Some(stroke_id) = &self.stroke_id {
-            println!("{}Stroke ID: {}", indent_str, stroke_id);
-        }
+        println!("{}Stroke ID: {}", indent_str, self.stroke_id);
         if let Some(line_style) = &self.line_style {
             println!("{}Line Style: {:?}", indent_str, line_style);
         }
-        println!("{}Group ID: {}", indent_str, self.group_id);
+        println!("{}Shape Group ID: {}", indent_str, self.shape_group_id);
         println!("{}Points JSON: {}", indent_str, self.points_json);
     }
 }
