@@ -2,14 +2,14 @@ use byteorder::{BE, ReadBytesExt};
 
 use crate::{
     error::{Error, Result},
-    id::{StrokeUuid, Unknown1Uuid, Unknown2Uuid},
+    id::{PageUuid, PointsUuid, StrokeUuid},
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Header {
     pub version: u32,
-    pub uuid1: Unknown1Uuid,
-    pub uuid2: Unknown2Uuid,
+    pub page_id: PageUuid,
+    pub points_id: PointsUuid,
 }
 
 impl Header {
@@ -22,19 +22,19 @@ impl Header {
         let mut buffer = [0; 36];
 
         reader.read_exact(&mut buffer)?;
-        let uuid1_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
-        let uuid1 = Unknown1Uuid::from_str(uuid1_str)?;
+        let page_id_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
+        let page_id = PageUuid::from_str(page_id_str.trim())?;
 
         // Clear buffer for the next read
         buffer.fill(0);
         reader.read_exact(&mut buffer)?;
-        let uuid2_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
-        let uuid2 = Unknown2Uuid::from_str(uuid2_str)?;
+        let points_id_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
+        let points_id = PointsUuid::from_str(points_id_str)?;
 
         Ok(Self {
             version,
-            uuid1,
-            uuid2,
+            page_id,
+            points_id,
         })
     }
 }
@@ -93,27 +93,27 @@ pub struct Stroke {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointsFile {
     header: Header,
-    stroke_table: Vec<PointsTableEntry>,
+    points_table: Vec<PointsTableEntry>,
 }
 
 impl PointsFile {
     pub fn read(mut reader: impl std::io::Read + std::io::Seek) -> Result<Self> {
         let header = Header::read(&mut reader)?;
 
-        let stroke_table_end = reader.seek(std::io::SeekFrom::End(-4))?;
-        let stroke_table_start = reader.read_u32::<BE>()?;
+        let points_table_end = reader.seek(std::io::SeekFrom::End(-4))?;
+        let points_table_start = reader.read_u32::<BE>()?;
 
-        let mut stroke_table = Vec::new();
+        let mut points_table = Vec::new();
 
-        reader.seek(std::io::SeekFrom::Start(stroke_table_start as u64))?;
-        while reader.stream_position()? < stroke_table_end {
+        reader.seek(std::io::SeekFrom::Start(points_table_start as u64))?;
+        while reader.stream_position()? < points_table_end {
             let entry = PointsTableEntry::read(&mut reader)?;
-            stroke_table.push(entry);
+            points_table.push(entry);
         }
 
         Ok(Self {
             header,
-            stroke_table,
+            points_table,
         })
     }
 
@@ -121,13 +121,11 @@ impl PointsFile {
         &self.header
     }
 
-    pub fn stroke_table(&self) -> &[PointsTableEntry] {
-        &self.stroke_table
+    pub fn points_table(&self) -> &[PointsTableEntry] {
+        &self.points_table
     }
 
-    pub fn get_stroke(&self, stroke_id: &StrokeUuid) -> Option<&PointsTableEntry> {
-        self.stroke_table
-            .iter()
-            .find(|s| s.stroke_id == *stroke_id)
+    pub fn get_points(&self, stroke_id: &StrokeUuid) -> Option<&PointsTableEntry> {
+        self.points_table.iter().find(|s| s.stroke_id == *stroke_id)
     }
 }

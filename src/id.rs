@@ -31,7 +31,7 @@ fn check_uuid(id: impl CheckUuid + Send + Sync + 'static) {
                 id.to_string(),
                 types.into_iter().collect::<Vec<_>>().join(", ")
             );
-        } 
+        }
     }
 
     // Insert the id into the HashMap
@@ -51,7 +51,9 @@ macro_rules! implement_uuid {
             }
 
             pub fn from_str(s: &str) -> crate::error::Result<Self> {
-                let id = Self(uuid::Uuid::parse_str(s)?);
+                let id = Self(uuid::Uuid::parse_str(s).inspect_err(|e| {
+                    log::error!("Failed to parse UUID from byte string: {}", s);
+                })?);
                 check_uuid(id.clone());
                 Ok(id)
             }
@@ -59,7 +61,9 @@ macro_rules! implement_uuid {
             pub fn from_byte_str(s: &[u8]) -> crate::error::Result<Self> {
                 let s =
                     std::str::from_utf8(s).map_err(|e| crate::error::Error::UuidInvalidUtf8(e))?;
-                let id = Self(uuid::Uuid::parse_str(s)?);
+                let id = Self(uuid::Uuid::parse_str(s).inspect_err(|e| {
+                    log::error!("Failed to parse UUID from byte string: {}", s);
+                })?);
                 check_uuid(id.clone());
                 Ok(id)
             }
@@ -111,8 +115,6 @@ implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
 implement_uuid!(ShapeGroupUuid);
 implement_uuid!(PointsUuid);
-implement_uuid!(Unknown1Uuid);
-implement_uuid!(Unknown2Uuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PenId {
