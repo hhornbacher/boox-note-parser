@@ -4,6 +4,22 @@ use crate::{
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 
+pub struct PageModelGroup{
+    pub page_models: Vec<PageModel>,
+}
+
+impl PageModelGroup {
+    pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        let container = protobuf::PageModelContainer::read(&mut reader)?;
+        let page_models = container
+            .page_model
+            .iter()
+            .map(PageModel::from_protobuf)
+            .collect::<crate::error::Result<_>>()?;
+        Ok(Self { page_models })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PageModel {
     pub page_id: PageUuid,
@@ -14,16 +30,14 @@ pub struct PageModel {
 }
 
 impl PageModel {
-    pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
-        let container = protobuf::PageModelContainer::read(&mut reader)?;
-        let model = container.page_model;
-        let page_model_layers: json::PageModelLayers = parse_json(&model.layers_json)?;
+    pub fn from_protobuf(page_model: &protobuf::PageModel) -> crate::error::Result<Self> {
+        let page_model_layers: json::PageModelLayers = parse_json(&page_model.layers_json)?;
         Ok(Self {
-            page_id: PageUuid::from_str(&model.page_uuid)?,
+            page_id: PageUuid::from_str(&page_model.page_uuid)?,
             layers: page_model_layers.layer_list,
-            created: convert_timestamp_to_datetime(model.created)?,
-            modified: convert_timestamp_to_datetime(model.modified)?,
-            dimensions: parse_json(&model.dimensions_json)?,
+            created: convert_timestamp_to_datetime(page_model.created)?,
+            modified: convert_timestamp_to_datetime(page_model.modified)?,
+            dimensions: parse_json(&page_model.dimensions_json)?,
         })
     }
 }
@@ -45,8 +59,8 @@ mod protobuf {
 
     #[derive(Clone, PartialEq, Message)]
     pub struct PageModelContainer {
-        #[prost(message, required, tag = "1")]
-        pub page_model: PageModel,
+        #[prost(message, repeated, tag = "1")]
+        pub page_model: Vec<PageModel>,
     }
 
     impl PageModelContainer {
