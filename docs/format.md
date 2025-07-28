@@ -9,10 +9,10 @@ This document describes the `.note` file format used by Onyx Boox e-ink devices,
 A `.note` file is a ZIP archive. It can contain either a single note or multiple notes.
 
 - **Multi-note archive**:  
-  Contains a file named `note_tree` in the root directory. This file is encoded using Protocol Buffers and contains metadata for all notes in the archive.
+  Contains a file named `note_tree` in the root directory. This file is encoded using Protocol Buffers and contains metadata for all notes in the archive. See the implementation in [`src/note_tree.rs`](../src/note_tree.rs).
 
 - **Single-note archive**:  
-  Contains a file in `note/pb/note_info` with the metadata of the note.
+  Contains a file in `note/pb/note_info` with the metadata of the note. See the implementation in [`src/note_tree.rs`](../src/note_tree.rs).
 
 ---
 
@@ -26,16 +26,13 @@ The file structure is hierarchical and differs slightly between single-note and 
 <archive>.note
 ├── note_tree                  # Protobuf: metadata for all notes
 ├── <note_id>/                 # One directory per note
-│   ├── note/pb/note_info      # Protobuf: metadata for the note
 │   ├── pageModel/pb/          # Protobuf: page model files
 │   ├── virtual/doc/pb/        # Protobuf: virtual document files
 │   ├── virtual/page/pb/       # Protobuf: virtual page files
 │   ├── shape/                 # Shape group files (protobuf)
 │   ├── point/                 # Handwriting stroke data (custom binary)
-│   ├── document/              # (optional) Additional document data
-│   ├── extra/                 # (optional) Additional data
-│   ├── resource/              # (optional) Resources
-│   └── template/              # (optional) Templates
+│   ├── resource/              # Resources
+│   └── template/              # Templates
 ```
 
 ### Single-note Archive
@@ -48,10 +45,10 @@ The file structure is hierarchical and differs slightly between single-note and 
 ├── virtual/page/pb/           # Protobuf: virtual page files
 ├── shape/                     # Shape group files (protobuf)
 ├── point/                     # Handwriting stroke data (custom binary)
-├── document/                  # (optional) Additional document data
-├── extra/                     # (optional) Additional data
-├── resource/                  # (optional) Resources
-└── template/                  # (optional) Templates
+├── document/                  # Additional document data
+├── extra/                     # Additional data
+├── resource/                  # Resources
+└── template/                  # Templates
 ```
 
 ---
@@ -69,7 +66,7 @@ The format uses several serialization methods:
   Some fields within protobuf structures (e.g., pen settings, canvas state) are stored as JSON strings and must be parsed separately.
 
 - **Custom Binary:**  
-  Points data (handwriting strokes) is stored in a custom binary format, described below.
+  Points data (handwriting strokes) is stored in a custom binary format, described below. See the implementation in [`src/points.rs`](../src/points.rs).
 
 ---
 
@@ -77,23 +74,23 @@ The format uses several serialization methods:
 
 The format is organized into several conceptual layers, each represented by specific files and structures:
 
-- **NoteTree:**  
+- [**NoteTree**](../src/note_tree.rs)  
   Top-level metadata for all notes in a multi-note archive, mapping note IDs to their corresponding `NoteMetadata`.  
   In single-note archives, this structure contains only one note but retains the same format.
 
-- **NoteMetadata:**  
+- [**NoteMetadata**](../src/note_tree.rs)
   Metadata for a single note, including creation/modification times, name, pen settings, canvas state, background configuration, device info, and lists of page UUIDs (active, reserved, detached).
 
-- **PageModel:**  
+- [**PageModel**](../src/page_model.rs)
   Describes the structure and properties of a page, including dimensions and layer arrangement.
 
-- **VirtualDoc / VirtualPage:**  
+- **[VirtualDoc](../src/virtual_doc.rs) / [VirtualPage](../src/virtual_page.rs)**  
   Represent virtualized versions of documents and pages, with their own metadata and content.
 
-- **ShapeGroup:**  
+- [**ShapeGroup**](../src/shape.rs)
   Contains groups of shapes (e.g. strokes) for a page, stored as protobuf.
 
-- **PointsFile:**  
+- [**PointsFile**](../src/points.rs)
   Contains the actual handwritten stroke data, organized by groups and stored in a custom binary format.
 
 ---
