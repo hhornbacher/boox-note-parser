@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{Arc, RwLock},
+};
 
 use zip::ZipArchive;
 
@@ -10,10 +13,11 @@ pub enum ContainerType {
     MultiNote,
 }
 
+#[derive(Debug)]
 pub struct Container<R: std::io::Read + std::io::Seek> {
-    container_type: ContainerType,
-    archive: ZipArchive<R>,
-    root_path: String,
+    container_type: Arc<ContainerType>,
+    archive: Arc<RwLock<ZipArchive<R>>>,
+    root_path: Arc<String>,
 }
 
 impl<R: std::io::Read + std::io::Seek> Container<R> {
@@ -36,9 +40,9 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
         };
 
         Ok(Self {
-            container_type,
-            archive,
-            root_path,
+            container_type: Arc::new(container_type),
+            archive: Arc::new(RwLock::new(archive)),
+            root_path: Arc::new(root_path),
         })
     }
 
@@ -47,7 +51,7 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
     }
 
     fn get_file_path(&self, path: &str) -> String {
-        if self.container_type == ContainerType::SingleNote {
+        if self.container_type.as_ref() == &ContainerType::SingleNote {
             return path.to_string();
         }
         format!("{}/{}", self.root_path, path)
@@ -56,6 +60,8 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
     pub fn list_directory(&self, path: &str) -> Vec<String> {
         let prefixed_path = self.get_file_path(path);
         self.archive
+            .read()
+            .unwrap()
             .file_names()
             .filter_map(|name| {
                 if name.starts_with(&prefixed_path) && !name.ends_with("/") {
@@ -67,16 +73,36 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
             .collect()
     }
 
-    pub fn get_file_relative(&mut self, path: &str) -> Result<impl std::io::Read> {
+    pub fn get_file_relative<T, F>(&mut self, path: &str, file_op_fn: F) -> Result<T>
+    where
+        F: FnOnce(zip::read::ZipFile<'_, R>) -> Result<T>,
+    {
         let file_path = self.get_file_path(path);
-        self.archive.by_name(&file_path).map_err(Error::Zip)
+        let mut archive = self.archive.write().unwrap();
+        let file = archive.by_name(&file_path).map_err(Error::Zip)?;
+        file_op_fn(file)
     }
 
-    pub fn get_file_absolute(&mut self, path: &str) -> Result<impl std::io::Read> {
-        self.archive.by_name(path).map_err(Error::Zip)
+    pub fn get_file_absolute<T, F>(&mut self, path: &str, file_op_fn: F) -> Result<T>
+    where
+        F: FnOnce(zip::read::ZipFile<'_, R>) -> Result<T>,
+    {
+        let mut archive = self.archive.write().unwrap();
+        let file = archive.by_name(path).map_err(Error::Zip)?;
+        file_op_fn(file)
     }
 
     pub fn root_path(&self) -> &str {
         &self.root_path
+    }
+}
+
+impl<R: std::io::Read + std::io::Seek> Clone for Container<R> {
+    fn clone(&self) -> Self {
+        Self {
+            container_type: self.container_type.clone(),
+            archive: self.archive.clone(),
+            root_path: self.root_path.clone(),
+        }
     }
 }
