@@ -108,7 +108,6 @@ macro_rules! implement_uuid {
 implement_uuid!(NoteUuid);
 implement_uuid!(VirtualPageUuid);
 implement_uuid!(VirtualDocUuid);
-implement_uuid!(ShapeUuid);
 implement_uuid!(StrokeUuid);
 implement_uuid!(PageUuid);
 implement_uuid!(PageModelUuid);
