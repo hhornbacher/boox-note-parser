@@ -6,11 +6,28 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+pub struct ShapeGroup {
+    shapes: Vec<Shape>,
+}
+
+impl ShapeGroup {
+    pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        let container = protobuf::ShapeContainer::read(&mut reader)?;
+        let shapes = container
+            .shapes
+            .iter()
+            .map(Shape::from_protobuf)
+            .collect::<crate::error::Result<_>>()?;
+        Ok(Self { shapes })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Shape {
     pub stroke_id: StrokeUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
-    pub sentinel_i64: i64,
+    pub unknown: i64,
     pub stroke_width: f32,
     pub bbox: Dimensions,
     pub render_scale: DisplayScale,
@@ -22,12 +39,12 @@ pub struct Shape {
 }
 
 impl Shape {
-    pub fn from_protobuf(shape: protobuf::Shape) -> crate::error::Result<Self> {
+    fn from_protobuf(shape: &protobuf::Shape) -> crate::error::Result<Self> {
         Ok(Self {
-            stroke_id: StrokeUuid::from_str(&shape.uuid)?,
+            stroke_id: StrokeUuid::from_str(&shape.stroke_uuid)?,
             created: convert_timestamp_to_datetime(shape.created)?,
             modified: convert_timestamp_to_datetime(shape.modified)?,
-            sentinel_i64: shape.sentinel_i64,
+            unknown: shape.unknown,
             stroke_width: shape.stroke_width,
             bbox: parse_json(&shape.bbox_json)?,
             render_scale: parse_json(&shape.render_scale_json)?,
@@ -42,31 +59,9 @@ impl Shape {
             } else {
                 Some(parse_json(&shape.line_style_json)?)
             },
-            shape_group_id: ShapeGroupUuid::from_str(&shape.another_uuid)?,
-            points_json: shape.empty_array_json,
+            shape_group_id: ShapeGroupUuid::from_str(&shape.shape_group_uuid)?,
+            points_json: shape.empty_array_json.clone(),
         })
-    }
-
-    pub fn print(&self, indent: usize) {
-        let indent_str = " ".repeat(indent);
-        println!("{}Stroke ID: {}", indent_str, self.stroke_id);
-        println!("{}Created: {}", indent_str, self.created);
-        println!("{}Modified: {}", indent_str, self.modified);
-        println!("{}Sentinel i64: {}", indent_str, self.sentinel_i64);
-        println!("{}Stroke Width: {}", indent_str, self.stroke_width);
-        println!("{}Bounding Box: {:?}", indent_str, self.bbox);
-        println!("{}Render Scale: {:?}", indent_str, self.render_scale);
-        println!("{}Z-Order: {}", indent_str, self.z_order);
-        if let Some(points_id) = &self.points_id {
-            println!("{}Points ID: {}", indent_str, points_id);
-        } else {
-            println!("{}Points ID: None", indent_str);
-        }
-        if let Some(line_style) = &self.line_style {
-            println!("{}Line Style: {:?}", indent_str, line_style);
-        }
-        println!("{}Shape Group ID: {}", indent_str, self.shape_group_id);
-        println!("{}Points JSON: {}", indent_str, self.points_json);
     }
 }
 
@@ -96,8 +91,10 @@ mod json {
     }
 }
 
-pub mod protobuf {
+mod protobuf {
     use prost::Message;
+
+    use crate::error::Result;
 
     #[derive(Clone, PartialEq, Message)]
     pub struct ShapeContainer {
@@ -106,7 +103,7 @@ pub mod protobuf {
     }
 
     impl ShapeContainer {
-        pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
             Ok(ShapeContainer::decode(&buf[..])?)
@@ -116,13 +113,13 @@ pub mod protobuf {
     #[derive(Clone, PartialEq, Message)]
     pub struct Shape {
         #[prost(string, tag = "1")]
-        pub uuid: String,
+        pub stroke_uuid: String,
         #[prost(uint64, tag = "2")]
         pub created: u64,
         #[prost(uint64, tag = "3")]
         pub modified: u64,
         #[prost(sint64, tag = "4")]
-        pub sentinel_i64: i64,
+        pub unknown: i64,
         #[prost(float, tag = "5")]
         pub stroke_width: f32,
         #[prost(string, tag = "7")]
@@ -136,7 +133,7 @@ pub mod protobuf {
         #[prost(string, tag = "17")]
         pub line_style_json: String,
         #[prost(string, tag = "18")]
-        pub another_uuid: String,
+        pub shape_group_uuid: String,
         #[prost(string, tag = "21")]
         pub empty_array_json: String,
     }

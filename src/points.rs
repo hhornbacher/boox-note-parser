@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 use byteorder::{BE, ReadBytesExt};
 use raqote::{DrawOptions, DrawTarget, PathBuilder, Source, StrokeStyle};
@@ -182,10 +182,7 @@ impl PointsFile {
             points.insert(entry.stroke_id, stroke);
         }
 
-        Ok(Self {
-            header,
-            points,
-        })
+        Ok(Self { header, points })
     }
 
     pub fn header(&self) -> &Header {

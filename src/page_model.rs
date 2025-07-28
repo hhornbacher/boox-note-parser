@@ -14,7 +14,9 @@ pub struct PageModel {
 }
 
 impl PageModel {
-    pub fn from_protobuf(model: &protobuf::PageModel) -> crate::error::Result<Self> {
+    pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        let container = protobuf::PageModelContainer::read(&mut reader)?;
+        let model = container.page_model;
         let page_model_layers: json::PageModelLayers = parse_json(&model.layers_json)?;
         Ok(Self {
             page_id: PageUuid::from_str(&model.page_uuid)?,
@@ -23,19 +25,6 @@ impl PageModel {
             modified: convert_timestamp_to_datetime(model.modified)?,
             dimensions: parse_json(&model.dimensions_json)?,
         })
-    }
-
-    pub fn print(&self, indent: usize) {
-        let indent_str = " ".repeat(indent);
-        println!("{}Page ID: {}", indent_str, self.page_id);
-        println!("{}Created: {}", indent_str, self.created);
-        println!("{}Modified: {}", indent_str, self.modified);
-        println!("{}Dimensions:", indent_str);
-        self.dimensions.print(indent + 2);
-        println!("{}Layers:", indent_str);
-        for layer in &self.layers {
-            layer.print(indent + 2);
-        }
     }
 }
 
@@ -51,7 +40,7 @@ mod json {
     }
 }
 
-pub mod protobuf {
+mod protobuf {
     use prost::Message;
 
     #[derive(Clone, PartialEq, Message)]

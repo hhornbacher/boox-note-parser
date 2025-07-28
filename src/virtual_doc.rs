@@ -1,4 +1,5 @@
 use crate::{
+    error::Result,
     id::{PageUuid, VirtualDocUuid},
     utils::{convert_timestamp_to_datetime, parse_json},
     virtual_doc::json::Content,
@@ -15,25 +16,16 @@ pub struct VirtualDoc {
 }
 
 impl VirtualDoc {
-    pub fn from_protobuf(doc: &protobuf::VirtualDoc) -> crate::error::Result<Self> {
+    pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
+        let doc = protobuf::VirtualDoc::read(&mut reader)?;
         Ok(Self {
-            virtual_doc_id: VirtualDocUuid::from_str(&doc.uuid)?,
+            virtual_doc_id: VirtualDocUuid::from_str(&doc.virtual_doc_uuid)?,
             created: convert_timestamp_to_datetime(doc.created)?,
             modified: convert_timestamp_to_datetime(doc.modified)?,
             page_id: PageUuid::from_str(&doc.template_uuid)?,
             stability: doc.stability,
             content: parse_json(&doc.content_json)?,
         })
-    }
-
-    pub fn print(&self, indent: usize) {
-        let indent_str = " ".repeat(indent);
-        println!("{}Virtual Doc ID: {}", indent_str, self.virtual_doc_id);
-        println!("{}Created: {}", indent_str, self.created);
-        println!("{}Modified: {}", indent_str, self.modified);
-        println!("{}Page ID: {}", indent_str, self.page_id);
-        println!("{}Stability: {}", indent_str, self.stability);
-        println!("{}Content: {:?}", indent_str, self.content);
     }
 }
 
@@ -53,13 +45,15 @@ mod json {
     }
 }
 
-pub mod protobuf {
+mod protobuf {
     use prost::Message;
+
+    use crate::error::Result;
 
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualDoc {
         #[prost(string, tag = "1")]
-        pub uuid: String,
+        pub virtual_doc_uuid: String,
         #[prost(uint64, tag = "2")]
         pub created: u64,
         #[prost(uint64, tag = "3")]
@@ -73,7 +67,7 @@ pub mod protobuf {
     }
 
     impl VirtualDoc {
-        pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
             Ok(VirtualDoc::decode(&buf[..])?)

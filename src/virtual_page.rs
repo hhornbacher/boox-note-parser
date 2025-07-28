@@ -1,5 +1,6 @@
 use crate::{
-    id::{PageUuid},
+    error::Result,
+    id::PageUuid,
     json::Dimensions,
     utils::{convert_timestamp_to_datetime, parse_json},
 };
@@ -19,41 +20,27 @@ pub struct VirtualPage {
 }
 
 impl VirtualPage {
-    pub fn from_protobuf(page: &protobuf::VirtualPage) -> crate::error::Result<Self> {
+    pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
+        let container = protobuf::VirtualPageContainer::read(&mut reader)?;
         Ok(Self {
-            page_id: PageUuid::from_str(&page.uuid)?,
-            created: convert_timestamp_to_datetime(page.created)?,
-            modified: convert_timestamp_to_datetime(page.modified)?,
-            zoom_scale: page.zoom_scale,
-            dimensions: parse_json(&page.dimensions_json)?,
-            layout: parse_json(&page.layout_json)?,
-            geo: parse_json(&page.geo_json)?,
-            geo_layout: page.geo_layout.clone(),
-            template_path: page.template_path.clone(),
-            page_number: page.page_number.clone(),
+            page_id: PageUuid::from_str(&container.virtual_page.page_uuid)?,
+            created: convert_timestamp_to_datetime(container.virtual_page.created)?,
+            modified: convert_timestamp_to_datetime(container.virtual_page.modified)?,
+            zoom_scale: container.virtual_page.zoom_scale,
+            dimensions: parse_json(&container.virtual_page.dimensions_json)?,
+            layout: parse_json(&container.virtual_page.layout_json)?,
+            geo: parse_json(&container.virtual_page.geo_json)?,
+            geo_layout: container.virtual_page.geo_layout.clone(),
+            template_path: container.virtual_page.template_path.clone(),
+            page_number: container.virtual_page.page_number.clone(),
         })
-    }
-
-    pub fn print(&self, indent: usize) {
-        let indent_str = " ".repeat(indent);
-        println!("{}Page ID: {}", indent_str, self.page_id);
-        println!("{}Created: {}", indent_str, self.created);
-        println!("{}Modified: {}", indent_str, self.modified);
-        println!("{}Zoom Scale: {}", indent_str, self.zoom_scale);
-        println!("{}Dimensions:", indent_str);
-        self.dimensions.print(indent + 2);
-        println!("{}Layout:", indent_str);
-        self.layout.print(indent + 2);
-        println!("{}Geo:", indent_str);
-        self.geo.print(indent + 2);
-        println!("{}Geo Layout: {}", indent_str, self.geo_layout);
-        println!("{}Template Path: {}", indent_str, self.template_path);
-        println!("{}Page Number: {}", indent_str, self.page_number);
     }
 }
 
-pub mod protobuf {
+mod protobuf {
     use prost::Message;
+
+    use crate::error::Result;
 
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualPageContainer {
@@ -62,7 +49,7 @@ pub mod protobuf {
     }
 
     impl VirtualPageContainer {
-        pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
             Ok(VirtualPageContainer::decode(&buf[..])?)
@@ -72,7 +59,7 @@ pub mod protobuf {
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualPage {
         #[prost(string, tag = "1")]
-        pub uuid: String,
+        pub page_uuid: String,
         #[prost(uint64, tag = "2")]
         pub created: u64,
         #[prost(uint64, tag = "3")]
