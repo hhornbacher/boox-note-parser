@@ -1,5 +1,7 @@
 use std::{collections::HashMap, io::Read};
 
+use raqote::{DrawOptions, DrawTarget, Source, StrokeStyle};
+
 use crate::{
     error::{Error, Result},
     id::{NoteUuid, PageModelUuid, PageUuid, PointsUuid, ShapeGroupUuid, VirtualPageUuid},
@@ -114,6 +116,18 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
 
     pub fn modified(&self) -> chrono::DateTime<chrono::Utc> {
         self.metadata.modified
+    }
+
+    pub fn fill_color(&self) -> &u32 {
+        &self.metadata.fill_color
+    }
+
+    pub fn pen_settings_fill_color(&self) -> &u32 {
+        &self.metadata.pen_settings.fill_color
+    }
+
+    pub fn pen_settings_graphics_shape_color(&self) -> &u32 {
+        &self.metadata.pen_settings.graphics_shape_color
     }
 
     pub fn get_page(&mut self, page_id: &PageUuid) -> Option<Page<R>> {
@@ -275,8 +289,6 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                         Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
                     })?,
                 );
-                // let shape_group_id =
-                //     ShapeGroupUuid::from_str(&shape_group_path.rsplit('/').next().unwrap())?;
                 let shape_group = self
                     .container
                     .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
@@ -321,6 +333,80 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             self.points_files = Some(points_files);
         }
         Ok(self.points_files.as_ref().unwrap())
+    }
+
+    pub fn render(&mut self) -> Result<DrawTarget> {
+        let page_id = self.page_id.to_hyphenated_string();
+        let width = self.page_model.dimensions.right - self.page_model.dimensions.left;
+        let height = self.page_model.dimensions.bottom - self.page_model.dimensions.top;
+        let mut draw_target = DrawTarget::new(width as i32, height as i32);
+        let draw_options = DrawOptions::new();
+
+        draw_target.fill_rect(
+            0.0,
+            0.0,
+            width,
+            height,
+            &Source::Solid(raqote::Color::new(255, 255, 255, 255).into()),
+            &DrawOptions::new(),
+        );
+
+        // Extract shape_groups and points_files into local variables to avoid multiple mutable borrows.
+        let shape_groups = {
+            let sg = self.shape_groups().inspect_err(|_| {
+                log::error!("Failed to get shape groups for page ID: {}", page_id)
+            })?;
+            sg.clone()
+        };
+
+        let points_files_vec = {
+            let pf = self.points_files().inspect_err(|_| {
+                log::error!("Failed to get points files for page ID: {}", page_id)
+            })?;
+            pf.values().flatten().collect::<Vec<_>>()
+        };
+
+        for (shape_group_id, shape_group) in &shape_groups {
+            let mut shapes = shape_group.shapes().to_vec();
+            shapes.sort_by(|a, b| a.z_order.cmp(&b.z_order));
+
+            for shape in shapes {
+                if let Some(points_id) = shape.points_id {
+                    if let Some(points) = points_files_vec
+                        .iter()
+                        .find(|pf| pf.header().points_id == points_id)
+                    {
+                        points
+                            .get_stroke(&shape.stroke_id)
+                            .ok_or_else(|| {
+                                log::error!("Failed to get stroke for shape");
+                                Error::StrokeNotFound
+                            })
+                            .and_then(|stroke| {
+                                log::debug!("Rendering stroke for shape");
+                                log::debug!(
+                                    "Shape Group ID: {}, Stroke ID: {}",
+                                    shape_group_id.to_hyphenated_string(),
+                                    shape.stroke_id.to_hyphenated_string()
+                                );
+                                log::debug!("Shape: {:#x?}", shape);
+                                stroke.render(
+                                    &mut draw_target,
+                                    &draw_options,
+                                    &StrokeStyle::default(),
+                                )
+                            })?;
+                    } else {
+                        log::warn!(
+                            "No points files found for shape group: {}",
+                            shape_group_id.to_hyphenated_string()
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(draw_target)
     }
 }
 
