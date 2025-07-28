@@ -1,11 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read};
 
 use crate::{
-    error::Result,
-    id::{NoteUuid, PageModelUuid, ShapeGroupUuid, VirtualPageUuid},
+    error::{Error, Result},
+    id::{NoteUuid, PageModelUuid, PageUuid, PointsUuid, ShapeGroupUuid, VirtualPageUuid},
     note_tree::{NoteMetadata, NoteTree},
-    page_model::PageModelGroup,
+    page_model::{PageModel, PageModelGroup},
     shape::ShapeGroup,
+    utils::convert_timestamp_to_datetime,
     virtual_doc::VirtualDoc,
     virtual_page::VirtualPage,
 };
@@ -160,7 +161,6 @@ pub struct Note<R: std::io::Read + std::io::Seek> {
     virtual_doc: Option<VirtualDoc>,
     virtual_pages: Option<HashMap<VirtualPageUuid, VirtualPage>>,
     page_models: Option<HashMap<PageModelUuid, PageModelGroup>>,
-    shape_groups: Option<HashMap<ShapeGroupUuid, ShapeGroup>>,
 }
 
 impl<R: std::io::Read + std::io::Seek> Note<R> {
@@ -171,8 +171,41 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
             virtual_doc: None,
             virtual_pages: None,
             page_models: None,
-            shape_groups: None,
         }
+    }
+
+    pub fn list_active_pages(&self) -> Vec<PageUuid> {
+        self.metadata
+            .active_pages
+            .iter()
+            .map(|page| page.to_owned())
+            .collect()
+    }
+
+    pub fn get_page(&mut self, page_id: &PageUuid) -> Option<Page<R>> {
+        let virtual_page = {
+            let virtual_pages = self.virtual_pages().ok()?;
+            virtual_pages
+                .values()
+                .find(|vp| &vp.page_id == page_id)?
+                .clone()
+        };
+
+        let page_model = {
+            let page_models = self.page_models().ok()?;
+            page_models
+                .values()
+                .find_map(|pm| pm.page_models.iter().find(|p| p.page_id == *page_id))?
+                .clone()
+        };
+
+        Some(Page::new(
+            self.container.clone(),
+            page_id.clone(),
+            self.metadata.note_id.clone(),
+            virtual_page,
+            page_model,
+        ))
     }
 
     pub fn virtual_doc(&mut self) -> Result<&VirtualDoc> {
@@ -230,44 +263,126 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
         }
         Ok(self.page_models.as_ref().unwrap())
     }
-
-    // pub fn shape_groups(&mut self) -> Result<&HashMap<ShapeGroupUuid, ShapeGroup>> {
-    //     if self.shape_groups.is_none() {
-    //         let note_id = self.metadata.note_id.to_simple_string();
-
-    //         let mut shape_groups = HashMap::new();
-
-    //         for shape_group_path in self
-    //             .container
-    //             .list_directory(&format!("{}/shape/{}#", note_id, page_id))
-    //         {
-    //             let path_tail = shape_group_path.rsplit('/').next().unwrap();
-    //             let parts = path_tail.split('#').collect::<Vec<_>>();
-    //             let shape_group_id = ShapeGroupUuid::from_str(parts[1])?;
-    //             let _timestamp = convert_timestamp_to_datetime(
-    //                 parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
-    //                     Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
-    //                 })?,
-    //             );
-    //             let shape_group_id =
-    //                 ShapeGroupUuid::from_str(&shape_group_path.rsplit('/').next().unwrap())?;
-    //             let shape_group = self
-    //                 .container
-    //                 .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
-    //             shape_groups.insert(shape_group_id, shape_group);
-    //         }
-    //         self.shape_groups = Some(shape_groups);
-    //     }
-    //     Ok(self.shape_groups.as_ref().unwrap())
-    // }
 }
 
 impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for Note<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Note")
             .field("metadata", &self.metadata)
-            .field("virtual_doc", &self.virtual_doc)
-            .field("virtual_pages", &self.virtual_pages)
+            .finish()
+    }
+}
+
+pub struct Page<R: std::io::Read + std::io::Seek> {
+    container: container::Container<R>,
+    note_id: NoteUuid,
+    page_id: PageUuid,
+    virtual_page: VirtualPage,
+    page_model: PageModel,
+    shape_groups: Option<HashMap<ShapeGroupUuid, ShapeGroup>>,
+    points_files: Option<HashMap<PointsUuid, Vec<points::PointsFile>>>,
+}
+
+impl<R: std::io::Read + std::io::Seek> Page<R> {
+    fn new(
+        container: container::Container<R>,
+        page_id: PageUuid,
+        note_id: NoteUuid,
+        virtual_page: VirtualPage,
+        page_model: PageModel,
+    ) -> Self {
+        Self {
+            container,
+            page_id,
+            note_id,
+            virtual_page,
+            page_model,
+            shape_groups: None,
+            points_files: None,
+        }
+    }
+
+    pub fn virtual_page(&self) -> &VirtualPage {
+        &self.virtual_page
+    }
+
+    pub fn page_model(&self) -> &PageModel {
+        &self.page_model
+    }
+
+    pub fn shape_groups(&mut self) -> Result<&HashMap<ShapeGroupUuid, ShapeGroup>> {
+        if self.shape_groups.is_none() {
+            let note_id = self.note_id.to_simple_string();
+            let page_id = self.page_id.to_simple_string();
+
+            let mut shape_groups = HashMap::new();
+
+            for shape_group_path in self
+                .container
+                .list_directory(&format!("{}/shape/{}#", note_id, page_id))
+            {
+                let path_tail = shape_group_path.rsplit('/').next().unwrap();
+                let parts = path_tail.split('#').collect::<Vec<_>>();
+                let shape_group_id = ShapeGroupUuid::from_str(parts[1])?;
+                let _timestamp = convert_timestamp_to_datetime(
+                    parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
+                        Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
+                    })?,
+                );
+                let shape_group_id =
+                    ShapeGroupUuid::from_str(&shape_group_path.rsplit('/').next().unwrap())?;
+                let shape_group = self
+                    .container
+                    .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
+                shape_groups.insert(shape_group_id, shape_group);
+            }
+            self.shape_groups = Some(shape_groups);
+        }
+        Ok(self.shape_groups.as_ref().unwrap())
+    }
+
+    pub fn points_files(&mut self) -> Result<&HashMap<PointsUuid, Vec<points::PointsFile>>> {
+        if self.points_files.is_none() {
+            let note_id = self.note_id.to_simple_string();
+            let page_id = self.page_id.to_simple_string();
+
+            let mut points_files = HashMap::new();
+
+            for stroke_path in self
+                .container
+                .list_directory(&format!("{}/point/{}/{}#", note_id, page_id, page_id))
+            {
+                let path_tail = stroke_path.rsplit('/').next().unwrap();
+                let parts = path_tail.split('#').collect::<Vec<_>>();
+                let shape_id = PointsUuid::from_str(parts[1])?;
+
+                let file_data = self
+                    .container
+                    .get_file_absolute(&stroke_path, |mut reader| {
+                        let mut buffer = Vec::new();
+                        reader.read_to_end(&mut buffer).map_err(Error::Io)?;
+                        Ok(buffer)
+                    })?;
+
+                let buffer_cursor = std::io::Cursor::new(file_data);
+                let points_file = points::PointsFile::read(buffer_cursor)?;
+
+                points_files
+                    .entry(shape_id)
+                    .or_insert_with(Vec::new)
+                    .push(points_file);
+            }
+            self.points_files = Some(points_files);
+        }
+        Ok(self.points_files.as_ref().unwrap())
+    }
+}
+
+impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for Page<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Page")
+            .field("virtual_page", &self.virtual_page)
+            .field("page_model", &self.page_model)
             .finish()
     }
 }
