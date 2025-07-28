@@ -62,88 +62,6 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
             .get(note_id)
             .map(|metadata| Note::new(self.container.clone(), metadata.clone()))
     }
-
-    // pub fn get_shapes(
-    //     &mut self,
-    //     note_id: &NoteUuid,
-    //     page_id: &PageUuid,
-    // ) -> Result<HashMap<ShapeGroupUuid, Vec<Shape>>> {
-    //     let note_id = note_id.to_simple_string();
-    //     let page_id = page_id.to_simple_string();
-
-    //     let mut shapes = HashMap::new();
-
-    //     for shape_path in self
-    //         .container
-    //         .list_directory(&format!("{}/shape/{}#", note_id, page_id))
-    //     {
-    //         let path_tail = shape_path.rsplit('/').next().unwrap();
-    //         let parts = path_tail.split('#').collect::<Vec<_>>();
-    //         let shape_group_id = ShapeGroupUuid::from_str(parts[1])?;
-    //         let _timestamp = convert_timestamp_to_datetime(
-    //             parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
-    //                 Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
-    //             })?,
-    //         );
-
-    //         let mut buffer = Vec::new();
-    //         {
-    //             let mut shape_container = self.container.get_file_absolute(&shape_path)?;
-    //             shape_container.read_to_end(&mut buffer)?;
-    //         }
-    //         let buffer_cursor = std::io::Cursor::new(buffer);
-    //         let mut shape_archive = zip::ZipArchive::new(buffer_cursor).map_err(Error::Zip)?;
-
-    //         let shape_file = shape_archive.by_index(0).map_err(Error::Zip)?;
-
-    //         let shape_container = shape::protobuf::ShapeContainer::read(shape_file)?;
-    //         shapes.insert(shape_group_id, Vec::new());
-
-    //         for shape in shape_container.shapes {
-    //             let shape = shape::Shape::from_protobuf(shape)?;
-    //             shapes.get_mut(&shape_group_id).unwrap().push(shape);
-    //         }
-    //     }
-
-    //     Ok(shapes)
-    // }
-
-    // pub fn get_points_files(
-    //     &mut self,
-    //     note_id: &NoteUuid,
-    //     page_id: &PageUuid,
-    // ) -> Result<HashMap<PointsUuid, Vec<points::PointsFile>>> {
-    //     let note_id = note_id.to_simple_string();
-    //     let page_id = page_id.to_simple_string();
-
-    //     let mut points_files = HashMap::new();
-
-    //     for stroke_path in self
-    //         .container
-    //         .list_directory(&format!("{}/point/{}/{}#", note_id, page_id, page_id))
-    //     {
-    //         let path_tail = stroke_path.rsplit('/').next().unwrap();
-    //         let parts = path_tail.split('#').collect::<Vec<_>>();
-
-    //         let shape_id = PointsUuid::from_str(parts[1])?;
-
-    //         let mut buffer = Vec::new();
-    //         {
-    //             let mut stroke_container = self.container.get_file_absolute(&stroke_path)?;
-    //             stroke_container.read_to_end(&mut buffer)?;
-    //         }
-    //         let buffer_cursor = std::io::Cursor::new(buffer);
-
-    //         let points_file = PointsFile::read(buffer_cursor)?;
-
-    //         points_files
-    //             .entry(shape_id)
-    //             .or_insert_with(Vec::new)
-    //             .push(points_file);
-    //     }
-
-    //     Ok(points_files)
-    // }
 }
 
 impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for NoteFile<R> {
@@ -174,25 +92,53 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
         }
     }
 
-    pub fn list_active_pages(&self) -> Vec<PageUuid> {
-        self.metadata
-            .active_pages
-            .iter()
-            .map(|page| page.to_owned())
-            .collect()
+    pub fn name(&self) -> &str {
+        &self.metadata.name
+    }
+
+    pub fn active_pages(&self) -> &[PageUuid] {
+        &self.metadata.active_pages
+    }
+
+    pub fn reserved_pages(&self) -> &[PageUuid] {
+        &self.metadata.reserved_pages
+    }
+
+    pub fn detached_pages(&self) -> &[PageUuid] {
+        &self.metadata.detached_pages
+    }
+
+    pub fn created(&self) -> chrono::DateTime<chrono::Utc> {
+        self.metadata.created
+    }
+
+    pub fn modified(&self) -> chrono::DateTime<chrono::Utc> {
+        self.metadata.modified
     }
 
     pub fn get_page(&mut self, page_id: &PageUuid) -> Option<Page<R>> {
         let virtual_page = {
-            let virtual_pages = self.virtual_pages().ok()?;
+            let virtual_pages = self
+                .virtual_pages()
+                .inspect_err(|_| {
+                    log::error!("Failed to get virtual pages for page ID: {}", page_id);
+                })
+                .ok()?;
+
             virtual_pages
                 .values()
-                .find(|vp| &vp.page_id == page_id)?
-                .clone()
+                .find(|vp| &vp.page_id == page_id)
+                .cloned()
         };
 
         let page_model = {
-            let page_models = self.page_models().ok()?;
+            let page_models = self
+                .page_models()
+                .inspect_err(|_| {
+                    log::error!("Failed to get page models for page ID: {}", page_id);
+                })
+                .ok()?;
+
             page_models
                 .values()
                 .find_map(|pm| pm.page_models.iter().find(|p| p.page_id == *page_id))?
@@ -277,7 +223,7 @@ pub struct Page<R: std::io::Read + std::io::Seek> {
     container: container::Container<R>,
     note_id: NoteUuid,
     page_id: PageUuid,
-    virtual_page: VirtualPage,
+    virtual_page: Option<VirtualPage>,
     page_model: PageModel,
     shape_groups: Option<HashMap<ShapeGroupUuid, ShapeGroup>>,
     points_files: Option<HashMap<PointsUuid, Vec<points::PointsFile>>>,
@@ -288,7 +234,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
         container: container::Container<R>,
         page_id: PageUuid,
         note_id: NoteUuid,
-        virtual_page: VirtualPage,
+        virtual_page: Option<VirtualPage>,
         page_model: PageModel,
     ) -> Self {
         Self {
@@ -302,7 +248,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
         }
     }
 
-    pub fn virtual_page(&self) -> &VirtualPage {
+    pub fn virtual_page(&self) -> &Option<VirtualPage> {
         &self.virtual_page
     }
 
@@ -329,8 +275,8 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                         Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
                     })?,
                 );
-                let shape_group_id =
-                    ShapeGroupUuid::from_str(&shape_group_path.rsplit('/').next().unwrap())?;
+                // let shape_group_id =
+                //     ShapeGroupUuid::from_str(&shape_group_path.rsplit('/').next().unwrap())?;
                 let shape_group = self
                     .container
                     .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
