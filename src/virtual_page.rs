@@ -1,8 +1,5 @@
 use crate::{
-    error::Result,
-    id::PageUuid,
-    json::Dimensions,
-    utils::{convert_timestamp_to_datetime, parse_json},
+    error::Result, id::PageUuid, json::Dimensions, utils::{convert_timestamp_to_datetime, parse_json}
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +20,7 @@ impl VirtualPage {
     pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
         let container = protobuf::VirtualPageContainer::read(&mut reader)?;
         Ok(Self {
-            page_id: PageUuid::from_str(&container.virtual_page.page_uuid)?,
+            page_id: PageUuid::from_str(&container.virtual_page.uuid)?,
             created: convert_timestamp_to_datetime(container.virtual_page.created)?,
             modified: convert_timestamp_to_datetime(container.virtual_page.modified)?,
             zoom_scale: container.virtual_page.zoom_scale,
@@ -37,7 +34,7 @@ impl VirtualPage {
     }
 }
 
-mod protobuf {
+pub mod protobuf {
     use prost::Message;
 
     use crate::error::Result;
@@ -59,7 +56,7 @@ mod protobuf {
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualPage {
         #[prost(string, tag = "1")]
-        pub page_uuid: String,
+        pub uuid: String,
         #[prost(uint64, tag = "2")]
         pub created: u64,
         #[prost(uint64, tag = "3")]
