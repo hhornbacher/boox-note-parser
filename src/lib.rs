@@ -19,6 +19,7 @@ mod shape;
 mod utils;
 mod virtual_doc;
 mod virtual_page;
+mod stroke;
 
 pub mod error;
 
