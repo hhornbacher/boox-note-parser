@@ -1,5 +1,5 @@
 use crate::{
-    id::{PointsUuid, ShapeGroupUuid, ShapeUuid, StrokeUuid},
+    id::{PointsUuid, ShapeGroupUuid, StrokeUuid},
     json::Dimensions,
     shape::json::{DisplayScale, LineStyleContainer},
     utils::{convert_timestamp_to_datetime, parse_json},
@@ -7,7 +7,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Shape {
-    pub shape_id: ShapeUuid,
+    pub stroke_id: StrokeUuid,
     pub created: chrono::DateTime<chrono::Utc>,
     pub modified: chrono::DateTime<chrono::Utc>,
     pub sentinel_i64: i64,
@@ -15,7 +15,7 @@ pub struct Shape {
     pub bbox: Dimensions,
     pub render_scale: DisplayScale,
     pub z_order: i64,
-    pub points_id: PointsUuid,
+    pub points_id: Option<PointsUuid>,
     pub line_style: Option<LineStyleContainer>,
     pub shape_group_id: ShapeGroupUuid,
     pub points_json: String,
@@ -24,7 +24,7 @@ pub struct Shape {
 impl Shape {
     pub fn from_protobuf(shape: protobuf::Shape) -> crate::error::Result<Self> {
         Ok(Self {
-            shape_id: ShapeUuid::from_str(&shape.uuid)?,
+            stroke_id: StrokeUuid::from_str(&shape.uuid)?,
             created: convert_timestamp_to_datetime(shape.created)?,
             modified: convert_timestamp_to_datetime(shape.modified)?,
             sentinel_i64: shape.sentinel_i64,
@@ -32,7 +32,11 @@ impl Shape {
             bbox: parse_json(&shape.bbox_json)?,
             render_scale: parse_json(&shape.render_scale_json)?,
             z_order: shape.z_order,
-            points_id: PointsUuid::from_str(&shape.points_uuid)?,
+            points_id: if shape.points_uuid.is_empty() {
+                None
+            } else {
+                Some(PointsUuid::from_str(&shape.points_uuid)?)
+            },
             line_style: if shape.line_style_json.is_empty() {
                 None
             } else {
@@ -45,7 +49,7 @@ impl Shape {
 
     pub fn print(&self, indent: usize) {
         let indent_str = " ".repeat(indent);
-        println!("{}Shape ID: {}", indent_str, self.shape_id);
+        println!("{}Stroke ID: {}", indent_str, self.stroke_id);
         println!("{}Created: {}", indent_str, self.created);
         println!("{}Modified: {}", indent_str, self.modified);
         println!("{}Sentinel i64: {}", indent_str, self.sentinel_i64);
@@ -53,7 +57,11 @@ impl Shape {
         println!("{}Bounding Box: {:?}", indent_str, self.bbox);
         println!("{}Render Scale: {:?}", indent_str, self.render_scale);
         println!("{}Z-Order: {}", indent_str, self.z_order);
-        println!("{}Points ID: {}", indent_str, self.points_id);
+        if let Some(points_id) = &self.points_id {
+            println!("{}Points ID: {}", indent_str, points_id);
+        } else {
+            println!("{}Points ID: None", indent_str);
+        }
         if let Some(line_style) = &self.line_style {
             println!("{}Line Style: {:?}", indent_str, line_style);
         }
