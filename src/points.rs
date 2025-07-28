@@ -40,7 +40,7 @@ impl Header {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StrokeTableEntry {
+pub struct PointsTableEntry {
     pub stroke_id: StrokeUuid,
     /// Byte offset of the first point in the file
     pub start_addr: u32,
@@ -50,7 +50,7 @@ pub struct StrokeTableEntry {
     pub flag: u8,
 }
 
-impl StrokeTableEntry {
+impl PointsTableEntry {
     pub fn read(reader: impl std::io::Read + std::io::Seek) -> Result<Self> {
         let mut reader = reader;
 
@@ -86,14 +86,14 @@ pub struct Point {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stroke {
-    pub meta: StrokeTableEntry,
+    pub meta: PointsTableEntry,
     pub points: Vec<Point>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointsFile {
     header: Header,
-    stroke_table: Vec<StrokeTableEntry>,
+    stroke_table: Vec<PointsTableEntry>,
 }
 
 impl PointsFile {
@@ -107,7 +107,7 @@ impl PointsFile {
 
         reader.seek(std::io::SeekFrom::Start(stroke_table_start as u64))?;
         while reader.stream_position()? < stroke_table_end {
-            let entry = StrokeTableEntry::read(&mut reader)?;
+            let entry = PointsTableEntry::read(&mut reader)?;
             stroke_table.push(entry);
         }
 
@@ -121,11 +121,11 @@ impl PointsFile {
         &self.header
     }
 
-    pub fn stroke_table(&self) -> &[StrokeTableEntry] {
+    pub fn stroke_table(&self) -> &[PointsTableEntry] {
         &self.stroke_table
     }
 
-    pub fn get_stroke(&self, stroke_id: &StrokeUuid) -> Option<&StrokeTableEntry> {
+    pub fn get_stroke(&self, stroke_id: &StrokeUuid) -> Option<&PointsTableEntry> {
         self.stroke_table
             .iter()
             .find(|s| s.stroke_id == *stroke_id)
