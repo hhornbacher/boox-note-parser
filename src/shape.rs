@@ -1,5 +1,5 @@
 use crate::{
-    id::{ShapeGroupUuid, ShapeUuid, StrokeUuid},
+    id::{PointsUuid, ShapeGroupUuid, ShapeUuid, StrokeUuid},
     json::Dimensions,
     shape::json::{DisplayScale, LineStyleContainer},
     utils::{convert_timestamp_to_datetime, parse_json},
@@ -15,7 +15,7 @@ pub struct Shape {
     pub bbox: Dimensions,
     pub render_scale: DisplayScale,
     pub z_order: i64,
-    pub stroke_id: StrokeUuid,
+    pub points_id: PointsUuid,
     pub line_style: Option<LineStyleContainer>,
     pub shape_group_id: ShapeGroupUuid,
     pub points_json: String,
@@ -32,7 +32,7 @@ impl Shape {
             bbox: parse_json(&shape.bbox_json)?,
             render_scale: parse_json(&shape.render_scale_json)?,
             z_order: shape.z_order,
-            stroke_id: StrokeUuid::from_str(&shape.stroke_uuid)?,
+            points_id: PointsUuid::from_str(&shape.points_uuid)?,
             line_style: if shape.line_style_json.is_empty() {
                 None
             } else {
@@ -53,7 +53,7 @@ impl Shape {
         println!("{}Bounding Box: {:?}", indent_str, self.bbox);
         println!("{}Render Scale: {:?}", indent_str, self.render_scale);
         println!("{}Z-Order: {}", indent_str, self.z_order);
-        println!("{}Stroke ID: {}", indent_str, self.stroke_id);
+        println!("{}Points ID: {}", indent_str, self.points_id);
         if let Some(line_style) = &self.line_style {
             println!("{}Line Style: {:?}", indent_str, line_style);
         }
@@ -124,7 +124,7 @@ pub mod protobuf {
         #[prost(sint64, tag = "12")]
         pub z_order: i64,
         #[prost(string, tag = "16")]
-        pub stroke_uuid: String,
+        pub points_uuid: String,
         #[prost(string, tag = "17")]
         pub line_style_json: String,
         #[prost(string, tag = "18")]
