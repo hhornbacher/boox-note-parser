@@ -1,12 +1,15 @@
+use std::collections::HashMap;
+
 use crate::{
-    id::NoteUuid,
+    id::{NoteUuid, PageUuid},
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 use chrono::{DateTime, Utc};
 use json::*;
 
+#[derive(Debug, Clone)]
 pub struct NoteTree {
-    pub notes: Vec<NoteMetadata>,
+    pub notes: HashMap<NoteUuid, NoteMetadata>,
 }
 
 impl NoteTree {
@@ -15,9 +18,16 @@ impl NoteTree {
         let notes = note_tree
             .notes
             .iter()
-            .map(NoteMetadata::from_protobuf)
+            .map(|note| {
+                let note_metadata = NoteMetadata::from_protobuf(note)?;
+                Ok((note_metadata.note_id, note_metadata))
+            })
             .collect::<crate::error::Result<_>>()?;
         Ok(Self { notes })
+    }
+
+    pub fn get(&self, note_id: &NoteUuid) -> Option<&NoteMetadata> {
+        self.notes.get(note_id)
     }
 }
 
@@ -36,8 +46,8 @@ pub struct NoteMetadata {
     pub device_info: DeviceInfo,
     pub fill_color: u32,
     pub pen_type: u32,
-    pub active_pages: PageNameList,
-    pub reserved_pages: PageNameList,
+    pub active_pages: Vec<PageUuid>,
+    pub reserved_pages: Vec<PageUuid>,
     pub canvas_width: f32,
     pub canvas_height: f32,
     pub location: String,
@@ -45,7 +55,7 @@ pub struct NoteMetadata {
     pub stroke_data_len: u32,
     pub has_share_user: u32,
     pub share_user: String,
-    pub detached_pages: PageNameList,
+    pub detached_pages: Vec<PageUuid>,
 }
 
 impl NoteMetadata {
@@ -67,8 +77,8 @@ impl NoteMetadata {
             device_info: parse_json(&note.device_info_json)?,
             fill_color: note.fill_color,
             pen_type: note.pen_type,
-            active_pages: parse_json(&note.active_pages_json)?,
-            reserved_pages: parse_json(&note.reserved_pages_json)?,
+            active_pages: parse_json::<PageNameList>(&note.active_pages_json)?.page_name_list,
+            reserved_pages: parse_json::<PageNameList>(&note.reserved_pages_json)?.page_name_list,
             canvas_width: note.canvas_width,
             canvas_height: note.canvas_height,
             location: note.location.clone(),
@@ -76,7 +86,7 @@ impl NoteMetadata {
             stroke_data_len: note.stroke_data_len,
             has_share_user: note.has_share_user,
             share_user: note.share_user.clone(),
-            detached_pages: parse_json(&note.detached_pages_json)?,
+            detached_pages: parse_json::<PageNameList>(&note.detached_pages_json)?.page_name_list,
         })
     }
 }
@@ -248,7 +258,7 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PageNameList {
-        pub page_name_list: Vec<String>,
+        pub page_name_list: Vec<PageUuid>,
     }
 }
 
