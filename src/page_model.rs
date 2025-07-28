@@ -4,7 +4,8 @@ use crate::{
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 
-pub struct PageModelGroup{
+#[derive(Debug, Clone)]
+pub struct PageModelGroup {
     pub page_models: Vec<PageModel>,
 }
 
