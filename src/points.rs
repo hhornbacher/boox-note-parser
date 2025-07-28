@@ -123,7 +123,12 @@ impl Stroke {
         Ok(Self { points })
     }
 
-    pub fn draw(&self, draw_target: &mut DrawTarget) -> Result<()> {
+    pub fn render(
+        &self,
+        draw_target: &mut DrawTarget,
+        draw_options: &DrawOptions,
+        stroke_style: &StrokeStyle,
+    ) -> Result<()> {
         if self.points.is_empty() {
             log::warn!("No points to draw for stroke");
             return Ok(());
@@ -141,14 +146,11 @@ impl Stroke {
             }
         }
 
-        let stroke_style = StrokeStyle::default();
-        let draw_options = DrawOptions::new();
-
         draw_target.stroke(
             &path.finish(),
             &Source::Solid(raqote::Color::new(255, 0, 0, 0).into()),
-            &stroke_style,
-            &draw_options,
+            stroke_style,
+            draw_options,
         );
 
         Ok(())
