@@ -23,4 +23,6 @@ pub enum Error {
     InvalidTimestamp(u64),
     #[error("Invalid timestamp format: {0}")]
     InvalidTimestampFormat(String),
+    #[error("Stroke not found")]
+    StrokeNotFound,
 }
