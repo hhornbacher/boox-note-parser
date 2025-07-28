@@ -1,4 +1,7 @@
+use std::{collections::HashMap, hash::Hash};
+
 use byteorder::{BE, ReadBytesExt};
+use raqote::{DrawOptions, DrawTarget, PathBuilder, Source, StrokeStyle};
 
 use crate::{
     error::{Error, Result},
@@ -86,14 +89,76 @@ pub struct Point {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stroke {
-    pub meta: PointsTableEntry,
     pub points: Vec<Point>,
+}
+
+impl Stroke {
+    pub fn read(
+        reader: impl std::io::Read + std::io::Seek,
+        entry: &PointsTableEntry,
+    ) -> Result<Self> {
+        let mut reader = reader;
+
+        reader.seek(std::io::SeekFrom::Start(entry.start_addr as u64))?;
+
+        let mut points = Vec::with_capacity(entry.point_count as usize);
+        for _ in 0..entry.point_count {
+            let timestamp_rel = reader.read_u32::<BE>()?;
+            let x = reader.read_f32::<BE>()?;
+            let y = reader.read_f32::<BE>()?;
+            let tilt_x = reader.read_i8()?;
+            let tilt_y = reader.read_i8()?;
+            let pressure = reader.read_u16::<BE>()?;
+
+            points.push(Point {
+                timestamp_rel,
+                x,
+                y,
+                tilt_x,
+                tilt_y,
+                pressure,
+            });
+        }
+
+        Ok(Self { points })
+    }
+
+    pub fn draw(&self, draw_target: &mut DrawTarget) -> Result<()> {
+        if self.points.is_empty() {
+            log::warn!("No points to draw for stroke");
+            return Ok(());
+        }
+
+        let mut path = PathBuilder::new();
+        let mut first_point = true;
+
+        for point in &self.points {
+            if first_point {
+                path.move_to(point.x, point.y);
+                first_point = false;
+            } else {
+                path.line_to(point.x, point.y);
+            }
+        }
+
+        let stroke_style = StrokeStyle::default();
+        let draw_options = DrawOptions::new();
+
+        draw_target.stroke(
+            &path.finish(),
+            &Source::Solid(raqote::Color::new(255, 0, 0, 0).into()),
+            &stroke_style,
+            &draw_options,
+        );
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointsFile {
     header: Header,
-    points_table: Vec<PointsTableEntry>,
+    points: HashMap<StrokeUuid, Stroke>,
 }
 
 impl PointsFile {
@@ -111,9 +176,15 @@ impl PointsFile {
             points_table.push(entry);
         }
 
+        let mut points = HashMap::new();
+        for entry in points_table {
+            let stroke = Stroke::read(&mut reader, &entry)?;
+            points.insert(entry.stroke_id, stroke);
+        }
+
         Ok(Self {
             header,
-            points_table,
+            points,
         })
     }
 
@@ -121,11 +192,7 @@ impl PointsFile {
         &self.header
     }
 
-    pub fn points_table(&self) -> &[PointsTableEntry] {
-        &self.points_table
-    }
-
-    pub fn get_points(&self, stroke_id: &StrokeUuid) -> Option<&PointsTableEntry> {
-        self.points_table.iter().find(|s| s.stroke_id == *stroke_id)
+    pub fn get_stroke(&self, stroke_id: &StrokeUuid) -> Option<&Stroke> {
+        self.points.get(stroke_id)
     }
 }
