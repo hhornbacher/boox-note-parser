@@ -1,3 +1,5 @@
+use zip::ZipArchive;
+
 use crate::{
     id::{PointsUuid, ShapeGroupUuid, StrokeUuid},
     json::Dimensions,
@@ -12,6 +14,15 @@ pub struct ShapeGroup {
 
 impl ShapeGroup {
     pub fn read(mut reader: impl std::io::Read) -> crate::error::Result<Self> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+
+        let reader = std::io::Cursor::new(buf);
+
+        let mut archive = ZipArchive::new(reader)?;
+
+        let mut reader = archive.by_index(0)?;
+
         let container = protobuf::ShapeContainer::read(&mut reader)?;
         let shapes = container
             .shapes
@@ -19,6 +30,10 @@ impl ShapeGroup {
             .map(Shape::from_protobuf)
             .collect::<crate::error::Result<_>>()?;
         Ok(Self { shapes })
+    }
+    
+    pub fn shapes(&self) -> &[Shape] {
+        &self.shapes
     }
 }
 
