@@ -3,7 +3,7 @@ use zip::ZipArchive;
 use crate::{
     id::{PointsUuid, ShapeGroupUuid, StrokeUuid},
     json::Dimensions,
-    shape::json::{DisplayScale, LineStyleContainer},
+    shape::json::{DisplayScale, LineStyle, LineStyleContainer},
     utils::{convert_timestamp_to_datetime, parse_json},
 };
 
@@ -48,7 +48,7 @@ pub struct Shape {
     pub render_scale: DisplayScale,
     pub z_order: i64,
     pub points_id: Option<PointsUuid>,
-    pub line_style: Option<LineStyleContainer>,
+    pub line_style: Option<LineStyle>,
     pub shape_group_id: ShapeGroupUuid,
     pub points_json: String,
 }
@@ -72,7 +72,8 @@ impl Shape {
             line_style: if shape.line_style_json.is_empty() {
                 None
             } else {
-                Some(parse_json(&shape.line_style_json)?)
+                let line_style_container: LineStyleContainer = parse_json(&shape.line_style_json)?;
+                Some(line_style_container.line_style)
             },
             shape_group_id: ShapeGroupUuid::from_str(&shape.shape_group_uuid)?,
             points_json: shape.empty_array_json.clone(),
@@ -95,7 +96,7 @@ mod json {
     #[derive(Debug, Clone, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct LineStyleContainer {
-        line_style: LineStyle,
+        pub line_style: LineStyle,
     }
 
     #[derive(Debug, Clone, Deserialize)]
