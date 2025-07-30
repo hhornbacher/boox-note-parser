@@ -118,8 +118,24 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
         self.metadata.modified
     }
 
+    pub fn flag(&self) -> u32 {
+        self.metadata.flag
+    }
+
+    pub fn pen_width(&self) -> f32 {
+        self.metadata.pen_width
+    }
+
+    pub fn scale_factor(&self) -> f32 {
+        self.metadata.scale_factor
+    }
+
     pub fn fill_color(&self) -> &u32 {
         &self.metadata.fill_color
+    }
+
+    pub fn pen_type(&self) -> &u32 {
+        &self.metadata.pen_type
     }
 
     pub fn pen_settings_fill_color(&self) -> &u32 {
