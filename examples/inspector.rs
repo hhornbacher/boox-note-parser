@@ -32,6 +32,10 @@ fn main() {
         let mut note = note_file.get_note(&note_id).unwrap();
         println!("    Created: {}", note.created());
         println!("    Modified: {}", note.modified());
+        println!("    Flag: {:08x}", note.flag());
+        println!("    Pen Width: {}", note.pen_width());
+        println!("    Pen Type: {}", note.pen_type());
+        println!("    Scale factor: {}", note.scale_factor());
         println!("    Fill Color: {:08x}", note.fill_color());
         println!("    Pen Settings Fill Color: {:08x}", note.pen_settings_fill_color());
         println!("    Pen Settings Graphics Shape Color: {:08x}", note.pen_settings_graphics_shape_color());
