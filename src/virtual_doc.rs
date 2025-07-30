@@ -52,16 +52,25 @@ mod protobuf {
 
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualDoc {
+        // Confirmed
         #[prost(string, tag = "1")]
         pub virtual_doc_uuid: String,
+        // Confirmed
         #[prost(uint64, tag = "2")]
         pub created: u64,
+        // Confirmed
         #[prost(uint64, tag = "3")]
         pub modified: u64,
+        // Confirmed
         #[prost(string, tag = "4")]
         pub template_uuid: String,
+        // Uncertain
         #[prost(float, tag = "5")]
         pub stability: f32,
+        // Uncertain
+        #[prost(float, tag = "7")]
+        pub unknown: f32,
+        // Confirmed
         #[prost(string, tag = "9")]
         pub content_json: String,
     }

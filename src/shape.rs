@@ -128,28 +128,40 @@ mod protobuf {
 
     #[derive(Clone, PartialEq, Message)]
     pub struct Shape {
+        // Confirmed
         #[prost(string, tag = "1")]
         pub stroke_uuid: String,
+        // Confirmed
         #[prost(uint64, tag = "2")]
         pub created: u64,
+        // Confirmed
         #[prost(uint64, tag = "3")]
         pub modified: u64,
+        // Uncertain
         #[prost(sint64, tag = "4")]
         pub unknown: i64,
+        // Uncertain
         #[prost(float, tag = "5")]
         pub stroke_width: f32,
+        // Confirmed
         #[prost(string, tag = "7")]
         pub bbox_json: String,
+        // Confirmed
         #[prost(string, tag = "11")]
         pub render_scale_json: String,
+        // Uncertain
         #[prost(sint64, tag = "12")]
         pub z_order: i64,
+        // Confirmed
         #[prost(string, tag = "16")]
         pub points_uuid: String,
+        // Confirmed
         #[prost(string, tag = "17")]
         pub line_style_json: String,
+        // Confirmed
         #[prost(string, tag = "18")]
         pub shape_group_uuid: String,
+        // Uncertain
         #[prost(string, tag = "21")]
         pub empty_array_json: String,
     }

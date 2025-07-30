@@ -1,5 +1,8 @@
 use crate::{
-    error::Result, id::PageUuid, json::Dimensions, utils::{convert_timestamp_to_datetime, parse_json}
+    error::Result,
+    id::PageUuid,
+    json::Dimensions,
+    utils::{convert_timestamp_to_datetime, parse_json},
 };
 
 #[derive(Debug, Clone)]
@@ -20,7 +23,7 @@ impl VirtualPage {
     pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
         let container = protobuf::VirtualPageContainer::read(&mut reader)?;
         Ok(Self {
-            page_id: PageUuid::from_str(&container.virtual_page.uuid)?,
+            page_id: PageUuid::from_str(&container.virtual_page.page_uuid)?,
             created: convert_timestamp_to_datetime(container.virtual_page.created)?,
             modified: convert_timestamp_to_datetime(container.virtual_page.modified)?,
             zoom_scale: container.virtual_page.zoom_scale,
@@ -49,30 +52,41 @@ pub mod protobuf {
         pub fn read(mut reader: impl std::io::Read) -> Result<Self> {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf)?;
+
             Ok(VirtualPageContainer::decode(&buf[..])?)
         }
     }
 
     #[derive(Clone, PartialEq, Message)]
     pub struct VirtualPage {
+        // Confirmed
         #[prost(string, tag = "1")]
-        pub uuid: String,
+        pub page_uuid: String,
+        // Confirmed
         #[prost(uint64, tag = "2")]
         pub created: u64,
+        // Confirmed
         #[prost(uint64, tag = "3")]
         pub modified: u64,
+        // Uncertain
         #[prost(float, tag = "4")]
         pub zoom_scale: f32,
+        // Uncertain
         #[prost(string, tag = "6")]
         pub dimensions_json: String,
+        // Uncertain
         #[prost(string, tag = "7")]
         pub layout_json: String,
+        // Uncertain
         #[prost(string, tag = "8")]
         pub geo_json: String,
+        // Uncertain
         #[prost(string, tag = "9")]
         pub geo_layout: String,
+        // Confirmed
         #[prost(string, tag = "10")]
         pub template_path: String,
+        // Uncertain
         #[prost(string, tag = "12")]
         pub page_number: String,
     }
