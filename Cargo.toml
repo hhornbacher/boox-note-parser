@@ -2,7 +2,7 @@
 authors = ["Harry Hornbacher <dev@harry-hornbacher.de>"]
 edition = "2024"
 name = "boox-note-parser"
-version = "0.1.0"
+version = "0.1.1"
 license = "Apache-2.0"
 description = "A Rust library for parsing .note files from Onyx Boox e-ink devices."
 
