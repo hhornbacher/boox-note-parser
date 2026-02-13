@@ -173,6 +173,10 @@ impl LayerId {
     pub fn new(id: u32) -> Self {
         Self(id)
     }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
 }
 
 impl std::fmt::Display for LayerId {

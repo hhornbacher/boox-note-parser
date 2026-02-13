@@ -567,6 +567,7 @@ pub struct Page<R: std::io::Read + std::io::Seek> {
     virtual_page: Option<VirtualPage>,
     page_model: PageModel,
     shape_groups: Option<HashMap<ShapeGroupUuid, ShapeGroup>>,
+    shape_group_draw_order: Option<Vec<ShapeGroupUuid>>,
     points_files: Option<HashMap<PointsUuid, Vec<points::PointsFile>>>,
     template: Option<Option<template::TemplateDescriptor>>,
     style_context: PageStyleContext,
@@ -590,6 +591,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             virtual_page,
             page_model,
             shape_groups: None,
+            shape_group_draw_order: None,
             points_files: None,
             template: None,
             style_context,
@@ -659,19 +661,36 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             let page_id = self.page_id.to_simple_string();
 
             let mut shape_groups = HashMap::new();
+            let mut shape_group_entries = Vec::new();
 
             let shape_prefix =
                 join_archive_path(&self.note_path_prefix, &format!("shape/{}#", page_id));
-            for shape_group_path in self.container.list_directory(&shape_prefix) {
+            for (index, shape_group_path) in self
+                .container
+                .list_directory(&shape_prefix)
+                .into_iter()
+                .enumerate()
+            {
                 let path_tail = file_name_from_path(&shape_group_path)?;
                 let (shape_group_id, timestamp) = parse_shape_group_file_name(path_tail)?;
                 let _timestamp = convert_timestamp_to_datetime(timestamp)?;
                 let shape_group = self
                     .container
                     .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
+
+                if !shape_groups.contains_key(&shape_group_id) {
+                    shape_group_entries.push((timestamp, index, shape_group_id));
+                }
                 shape_groups.insert(shape_group_id, shape_group);
             }
+            shape_group_entries.sort_by_key(|(timestamp, index, _)| (*timestamp, *index));
             self.shape_groups = Some(shape_groups);
+            self.shape_group_draw_order = Some(
+                shape_group_entries
+                    .into_iter()
+                    .map(|(_, _, shape_group_id)| shape_group_id)
+                    .collect(),
+            );
         }
         Ok(self.shape_groups.as_ref().unwrap())
     }
@@ -733,77 +752,136 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             .inspect_err(|_| log::error!("Failed to get points files for page ID: {}", page_id))?;
 
         let shape_groups = self.shape_groups.as_ref().unwrap();
+        let shape_group_draw_order = self.shape_group_draw_order.as_ref().unwrap();
         let points_files = self.points_files.as_ref().unwrap();
 
-        for (shape_group_id, shape_group) in shape_groups {
+        // Shape group files can contain historical revisions for the same stroke UUID.
+        // Render only the final state (last occurrence in group draw order / file order).
+        let mut last_shape_index_by_stroke = HashMap::new();
+        let mut shape_index = 0usize;
+        for shape_group_id in shape_group_draw_order {
+            let Some(shape_group) = shape_groups.get(shape_group_id) else {
+                continue;
+            };
             for shape in shape_group.shapes() {
-                if let Some(points_id) = shape.points_id {
-                    if let Some(points_candidates) = points_files.get(&points_id) {
-                        let stroke = points_candidates
-                            .iter()
-                            .find_map(|points_file| points_file.get_stroke(&shape.stroke_id))
-                            .ok_or_else(|| {
-                                log::error!("Failed to get stroke for shape");
-                                Error::StrokeNotFound
-                            })?;
+                last_shape_index_by_stroke.insert(shape.stroke_id, shape_index);
+                shape_index += 1;
+            }
+        }
 
-                        let pen_type = u8::try_from(shape.z_order).ok();
-                        let stroke_width = self
-                            .style_context
-                            .resolve_stroke_width(shape.stroke_width, pen_type);
-                        let stroke_color_argb = self.style_context.resolve_stroke_color(
-                            shape.unknown as u32,
-                            pen_type,
-                            shape.stroke_width,
-                            stroke_width,
-                        );
+        let mut layer_draw_order: Vec<u32> = self
+            .page_model
+            .layers
+            .iter()
+            .filter(|layer| layer.show)
+            .map(|layer| layer.id.value())
+            .collect();
 
-                        let mut stroke_style = StrokeStyle {
-                            width: stroke_width,
-                            cap: LineCap::Round,
-                            join: LineJoin::Round,
-                            ..StrokeStyle::default()
+        for shape_group_id in shape_group_draw_order {
+            let Some(shape_group) = shape_groups.get(shape_group_id) else {
+                continue;
+            };
+            for shape in shape_group.shapes() {
+                if !layer_draw_order.contains(&shape.unknown_6) {
+                    layer_draw_order.push(shape.unknown_6);
+                }
+            }
+        }
+
+        // Render in layer-list order from page model. On observed pages this preserves
+        // highlighter-vs-ink stacking without hardcoding pen-type semantics.
+        for layer_id in layer_draw_order {
+            let mut shape_index = 0usize;
+            for shape_group_id in shape_group_draw_order {
+                let Some(shape_group) = shape_groups.get(shape_group_id) else {
+                    log::warn!(
+                        "Shape group listed in draw order but missing in map: {}",
+                        shape_group_id.to_hyphenated_string()
+                    );
+                    continue;
+                };
+                for shape in shape_group.shapes() {
+                    let is_final_shape_revision =
+                        last_shape_index_by_stroke.get(&shape.stroke_id).copied()
+                            == Some(shape_index);
+                    shape_index += 1;
+
+                    if !is_final_shape_revision {
+                        continue;
+                    }
+
+                    if shape.unknown_6 != layer_id {
+                        continue;
+                    }
+
+                    let pen_type = u8::try_from(shape.z_order).ok();
+                    let stroke_width = self
+                        .style_context
+                        .resolve_stroke_width(shape.stroke_width, pen_type);
+                    let mut stroke_style = StrokeStyle {
+                        width: stroke_width,
+                        cap: LineCap::Round,
+                        join: LineJoin::Round,
+                        ..StrokeStyle::default()
+                    };
+
+                    if let Some(line_style) = shape.line_style.as_ref() {
+                        stroke_style.dash_offset = if line_style.phase.is_finite() {
+                            line_style.phase
+                        } else {
+                            0.0
                         };
+                        stroke_style.dash_array = match line_style.type_ {
+                            0 => Vec::new(),
+                            1 => vec![4.0 * stroke_width, 2.0 * stroke_width],
+                            2 => vec![stroke_width, 1.5 * stroke_width],
+                            3 => vec![
+                                4.0 * stroke_width,
+                                2.0 * stroke_width,
+                                stroke_width,
+                                2.0 * stroke_width,
+                            ],
+                            _ => Vec::new(),
+                        };
+                    }
 
-                        if let Some(line_style) = shape.line_style.as_ref() {
-                            stroke_style.dash_offset = if line_style.phase.is_finite() {
-                                line_style.phase
-                            } else {
-                                0.0
-                            };
-                            stroke_style.dash_array = match line_style.type_ {
-                                0 => Vec::new(),
-                                1 => vec![4.0 * stroke_width, 2.0 * stroke_width],
-                                2 => vec![stroke_width, 1.5 * stroke_width],
-                                3 => vec![
-                                    4.0 * stroke_width,
-                                    2.0 * stroke_width,
-                                    stroke_width,
-                                    2.0 * stroke_width,
-                                ],
-                                _ => Vec::new(),
-                            };
+                    if let Some(points_id) = shape.points_id {
+                        if let Some(points_candidates) = points_files.get(&points_id) {
+                            let stroke = points_candidates
+                                .iter()
+                                .find_map(|points_file| points_file.get_stroke(&shape.stroke_id))
+                                .ok_or_else(|| {
+                                    log::error!("Failed to get stroke for shape");
+                                    Error::StrokeNotFound
+                                })?;
+
+                            let stroke_color_argb = self.style_context.resolve_stroke_color(
+                                shape.unknown as u32,
+                                pen_type,
+                                shape.stroke_width,
+                                stroke_width,
+                            );
+
+                            log::debug!("Rendering stroke for shape");
+                            log::debug!(
+                                "Shape Group ID: {}, Stroke ID: {}",
+                                shape_group_id.to_hyphenated_string(),
+                                shape.stroke_id.to_hyphenated_string()
+                            );
+                            log::debug!("Shape: {:#x?}", shape);
+
+                            stroke.render_with_color(
+                                &mut draw_target,
+                                &draw_options,
+                                &stroke_style,
+                                argb_to_raqote_color(stroke_color_argb),
+                            )?;
+                        } else {
+                            log::warn!(
+                                "No points files found for shape group: {}",
+                                shape_group_id.to_hyphenated_string()
+                            );
                         }
-
-                        log::debug!("Rendering stroke for shape");
-                        log::debug!(
-                            "Shape Group ID: {}, Stroke ID: {}",
-                            shape_group_id.to_hyphenated_string(),
-                            shape.stroke_id.to_hyphenated_string()
-                        );
-                        log::debug!("Shape: {:#x?}", shape);
-
-                        stroke.render_with_color(
-                            &mut draw_target,
-                            &draw_options,
-                            &stroke_style,
-                            argb_to_raqote_color(stroke_color_argb),
-                        )?;
-                    } else {
-                        log::warn!(
-                            "No points files found for shape group: {}",
-                            shape_group_id.to_hyphenated_string()
-                        );
                     }
                 }
             }

@@ -44,9 +44,11 @@ pub struct Shape {
     pub modified: chrono::DateTime<chrono::Utc>,
     pub unknown: i64,
     pub stroke_width: f32,
+    pub unknown_6: u32,
     pub bbox: Dimensions,
     pub render_scale: DisplayScale,
     pub z_order: i64,
+    pub unknown_15: u32,
     pub points_id: Option<PointsUuid>,
     pub line_style: Option<LineStyle>,
     pub shape_group_id: ShapeGroupUuid,
@@ -61,9 +63,11 @@ impl Shape {
             modified: convert_timestamp_to_datetime(shape.modified)?,
             unknown: shape.unknown,
             stroke_width: shape.stroke_width,
+            unknown_6: shape.unknown_6,
             bbox: parse_json(&shape.bbox_json)?,
             render_scale: parse_json(&shape.render_scale_json)?,
             z_order: shape.z_order,
+            unknown_15: shape.unknown_15,
             points_id: if shape.points_uuid.is_empty() {
                 None
             } else {
@@ -145,6 +149,9 @@ mod protobuf {
         // Uncertain
         #[prost(float, tag = "5")]
         pub stroke_width: f32,
+        // Observed on multi-layer pages; likely layer/state metadata.
+        #[prost(uint32, tag = "6")]
+        pub unknown_6: u32,
         // Confirmed
         #[prost(string, tag = "7")]
         pub bbox_json: String,
@@ -154,6 +161,9 @@ mod protobuf {
         // Observed as pen/style type key (non-zigzag integer)
         #[prost(int64, tag = "12")]
         pub z_order: i64,
+        // Observed on entries missing points UUID; likely tombstone/state marker.
+        #[prost(uint32, tag = "15")]
+        pub unknown_15: u32,
         // Confirmed
         #[prost(string, tag = "16")]
         pub points_uuid: String,
