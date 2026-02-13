@@ -139,8 +139,8 @@ mod protobuf {
         // Confirmed
         #[prost(uint64, tag = "3")]
         pub modified: u64,
-        // Uncertain
-        #[prost(sint64, tag = "4")]
+        // Observed as ARGB color encoded as signed integer value
+        #[prost(int64, tag = "4")]
         pub unknown: i64,
         // Uncertain
         #[prost(float, tag = "5")]
@@ -151,8 +151,8 @@ mod protobuf {
         // Confirmed
         #[prost(string, tag = "11")]
         pub render_scale_json: String,
-        // Uncertain
-        #[prost(sint64, tag = "12")]
+        // Observed as pen/style type key (non-zigzag integer)
+        #[prost(int64, tag = "12")]
         pub z_order: i64,
         // Confirmed
         #[prost(string, tag = "16")]

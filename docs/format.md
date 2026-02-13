@@ -100,22 +100,26 @@ Notes from samples:
 
 ## Parser Coverage in This Crate
 
-Implemented:
+| Archive Path / Feature                                      | Status             | Source Module / API                                | Notes                                                                 |
+| ----------------------------------------------------------- | ------------------ | -------------------------------------------------- | --------------------------------------------------------------------- |
+| `note_tree` / `note/pb/note_info`                          | Implemented        | `src/note_tree.rs`, `NoteFile::read`               | Handles both multi-note and single-note layouts.                      |
+| `pageModel/pb/*`                                            | Implemented        | `src/page_model.rs`, `Note::page_models`           | Page geometry/layer metadata parsed into typed structs.               |
+| `virtual/doc/pb/*`                                          | Implemented        | `src/virtual_doc.rs`, `Note::virtual_doc`          | Document-level virtual metadata.                                      |
+| `virtual/page/pb/*`                                         | Implemented        | `src/virtual_page.rs`, `Note::virtual_pages`       | Page-level virtual metadata.                                          |
+| `shape/<page>#<shape_group>#<timestamp>.zip`               | Implemented        | `src/shape.rs`, `Page::shape_groups`               | Shape groups and per-shape style metadata parsed.                     |
+| `point/<page>/<page>#<points_id>#points`                   | Implemented        | `src/points.rs`, `Page::points_files`              | Big-endian custom binary parser with UUID padding normalization.      |
+| `template/json/*.template_json` and `.template_json`       | Implemented        | `src/template.rs`, `Note::templates`, `Page::template` | Supports per-page and per-note default template descriptors.      |
+| `document/<note_id>/template/json/*.template_json`         | Implemented        | `src/lib.rs`, `Note::templates`, `Page::template`  | Mirrored template paths are discovered and parsed.                    |
+| `extra/pb/extra`                                            | Implemented        | `src/extra.rs`, `Note::extra_metadata`             | Typed parser for observed extra metadata payload.                     |
+| `resource/pb/*`                                             | Partially Modeled  | `src/resource.rs`, `Note::resources`               | Presence, IDs, timestamps, and raw/empty payloads are exposed; schema remains unknown. |
+| `toc/` and `toc/*` metadata                                 | Partially Modeled  | `src/note_assets.rs`, `Note::assets_metadata`      | Existence/file metadata surfaced; content schema is not decoded.      |
+| `<note_id>.png` preview metadata                            | Partially Modeled  | `src/note_assets.rs`, `Note::assets_metadata`      | Preview file discovery and size metadata surfaced.                    |
+| Stroke rendering fidelity (color/width/line style mapping) | Partially Modeled  | `src/lib.rs` (`Page::render`), `src/points.rs`     | Renders from parsed style metadata with heuristic pen-type mapping.   |
 
-- `note_tree` / `note/pb/note_info`
-- `pageModel/pb/*`
-- `virtual/doc/pb/*`
-- `virtual/page/pb/*`
-- `shape/*.zip` (embedded protobuf)
-- `point/...#points`
+Additional notes:
 
-Not modeled yet:
-
-- `extra/pb/extra`
-- `resource/pb/*`
-- `toc/`
-- preview PNG metadata
-- explicit typed model for `template/json/*.template_json`
+- Points UUID parsing accepts simple and hyphenated forms with whitespace/null padding normalization.
+- Rendering uses parsed line-style metadata plus pen settings/quick-pen data with fallbacks when fields are absent.
 
 ## Custom Points File Format
 
@@ -166,7 +170,6 @@ Implementation: [`src/points.rs`](../src/points.rs)
 ## Open Questions
 
 - Exact semantics of several protobuf fields currently labeled `unknown`.
-- Full schema of `extra/pb/extra`.
-- Full schema and lifecycle of `resource/pb/*`.
-- Meaning and lifecycle of `toc/` content.
+- Full schema and lifecycle of non-empty `resource/pb/*` payloads.
+- Meaning and lifecycle of `toc/` content (`toc/pb/*`).
 - Semantics of points-table low nibble `flag`.

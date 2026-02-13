@@ -17,7 +17,11 @@ The format is undocumented and [reverse-engineered](docs/format.md) from real no
 - Read note metadata (`note_tree` / `note_info` protobuf payloads).
 - Parse page models and virtual page/document metadata.
 - Parse shape groups and custom points stroke files.
-- Render page strokes to PNG using `raqote`.
+- Parse `extra/pb/extra` metadata.
+- Parse templates from `template/json/*.template_json` and `.template_json` (including mirrored `document/<note_id>/...` paths).
+- Surface `resource/pb/*` records, including explicit handling for empty payload files.
+- Surface TOC and preview PNG asset metadata.
+- Render page strokes to PNG using style-aware color/width/line-style mapping.
 
 ## Quick Start
 
@@ -44,6 +48,123 @@ You can also run the example inspector:
 cargo run --example inspector -- <path-to-note-file>
 ```
 
+## Try It Out
+
+### CLI Track (Inspector Example)
+
+Run the built-in inspector:
+
+```bash
+cargo run --example inspector -- <path-to-note-file.note>
+```
+
+Expected behavior:
+
+- Prints note metadata (IDs, names, timestamps, pen settings).
+- Prints template/resource/extra/asset metadata (`Templates:`, `Resources:`, `TOC exists:`, `Preview:`).
+- Renders pages and writes PNG files to the current directory.
+
+Quick verification checks:
+
+- Confirm output includes lines for template/resource/assets.
+- Confirm generated PNGs are present in your working directory.
+
+### Library Track (Use the Crate in Your Own Binary)
+
+Minimal example:
+
+```rust
+use std::{env, fs::File, path::PathBuf};
+
+use boox_note_parser::NoteFile;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let note_path = env::args().nth(1).expect("Usage: app <file.note>");
+    let file = File::open(PathBuf::from(note_path))?;
+    let note_file = NoteFile::read(file)?;
+
+    for (note_id, name) in note_file.list_notes() {
+        println!("{} -> {}", note_id.to_hyphenated_string(), name);
+        let mut note = note_file.get_note(&note_id).expect("note should exist");
+
+        if let Some(page_id) = note.active_pages().first().copied() {
+            let mut page = note.get_page(&page_id).expect("page should exist");
+            let rendered = page.render()?;
+            rendered.write_png(format!("{}_{}.png", name, page_id.to_simple_string()))?;
+            println!("Rendered first active page for {}", name);
+        }
+    }
+
+    Ok(())
+}
+```
+
+Compile/run guidance:
+
+```bash
+cargo new boox-note-playground --bin
+cd boox-note-playground
+```
+
+Add this dependency in `Cargo.toml`:
+
+```toml
+[dependencies]
+boox-note-parser = { path = "../boox-note-parser" }
+```
+
+Then run:
+
+```bash
+cargo run -- <path-to-note-file.note>
+```
+
+### Troubleshooting
+
+- If you forget the note-file path, inspector exits with a usage line.
+- If a note is unsupported/corrupt, parsing returns an error instead of panicking.
+- Corpus integration tests are skipped unless enabled with:
+  - `BOOX_NOTE_PARSER_RUN_CORPUS_TESTS=1`
+
+## Fixture Contribution Guide
+
+This project prefers extracted-minimal fixtures over full `.note` files.
+
+Guidelines:
+
+- Do not commit personal/raw full exports by default.
+- Contribute only the smallest extracted blobs needed to prove parser behavior under `tests/fixtures/<topic>/`.
+- Remove or anonymize sensitive names/text/identifiers in fixture content before submission.
+- Add a short note in the test describing which behavior the fixture validates.
+
+Expected wiring:
+
+- Fixture files live under `tests/fixtures/<topic>/`.
+- In-memory archive assembly and reuse helpers live in `tests/common/mod.rs`.
+- Behavior-focused integration tests follow the pattern in `tests/p2_fixture_coverage.rs`.
+
+## Quality Checks
+
+Baseline required checks:
+
+```bash
+cargo fmt -- --check
+cargo check --quiet
+cargo test --quiet
+```
+
+Optional local corpus validation (requires local sample `.note` files):
+
+```bash
+BOOX_NOTE_PARSER_RUN_CORPUS_TESTS=1 cargo test --test p1_format_coverage
+```
+
+Optional stricter static analysis (non-gating for now):
+
+```bash
+cargo clippy --all-targets --all-features
+```
+
 ## Corpus Notes (Current Reverse Engineering Basis)
 
 The code and format notes are currently validated against Boox Notes App exports from a Boox Note Air 4 C (Notes app build `42842 - 0760e1b1dad`).
@@ -59,6 +180,6 @@ Observed in that corpus:
 
 ## Current Gaps
 
-- Unknown protobuf fields and some metadata sections still need broader cross-device validation.
-- `extra/pb`, `resource/pb`, `template/json`, `document/`, `toc/`, and preview PNG metadata are not modeled yet.
-- There is no fixture-driven integration test suite yet.
+- Unknown protobuf fields and some metadata semantics still need broader cross-device validation.
+- `resource/pb/*` and `toc/pb/*` payload internals are still treated as opaque/partially modeled.
+- More cross-device corpus coverage is needed to confirm behavior outside current observed exports.

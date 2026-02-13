@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::Read};
 
-use raqote::{DrawOptions, DrawTarget, Source, StrokeStyle};
+use raqote::{DrawOptions, DrawTarget, LineCap, LineJoin, Source, StrokeStyle};
 
 use crate::{
     error::{Error, Result},
@@ -91,10 +91,16 @@ impl PageStyleContext {
 
     fn resolve_stroke_color(
         &self,
+        shape_color_argb: u32,
         pen_type: Option<u8>,
         shape_width: f32,
         resolved_width: f32,
     ) -> u32 {
+        // Shape payload carries per-stroke ARGB in observed files.
+        if shape_color_argb != 0 {
+            return shape_color_argb;
+        }
+
         let Some(pen_type) = pen_type else {
             return self.default_color_argb;
         };
@@ -741,18 +747,23 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                                 Error::StrokeNotFound
                             })?;
 
-                        let pen_type = infer_pen_type(shape.z_order);
+                        let pen_type = u8::try_from(shape.z_order).ok();
                         let stroke_width = self
                             .style_context
                             .resolve_stroke_width(shape.stroke_width, pen_type);
                         let stroke_color_argb = self.style_context.resolve_stroke_color(
+                            shape.unknown as u32,
                             pen_type,
                             shape.stroke_width,
                             stroke_width,
                         );
 
-                        let mut stroke_style = StrokeStyle::default();
-                        stroke_style.width = stroke_width;
+                        let mut stroke_style = StrokeStyle {
+                            width: stroke_width,
+                            cap: LineCap::Round,
+                            join: LineJoin::Round,
+                            ..StrokeStyle::default()
+                        };
 
                         if let Some(line_style) = shape.line_style.as_ref() {
                             stroke_style.dash_offset = if line_style.phase.is_finite() {
@@ -805,16 +816,6 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 fn argb_to_raqote_color(color_argb: u32) -> raqote::Color {
     let [a, r, g, b] = color_argb.to_be_bytes();
     raqote::Color::new(a, r, g, b)
-}
-
-fn infer_pen_type(z_order: i64) -> Option<u8> {
-    if let Ok(pen_type) = u8::try_from(z_order) {
-        return Some(pen_type);
-    }
-
-    // In observed samples this field is zigzag-encoded in a way that often decodes to negatives.
-    let zigzag_encoded = ((z_order << 1) ^ (z_order >> 63)) as u64;
-    u8::try_from(zigzag_encoded).ok()
 }
 
 fn join_archive_path(prefix: &str, tail: &str) -> String {
