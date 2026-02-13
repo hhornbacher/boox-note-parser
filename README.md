@@ -59,8 +59,6 @@ Observed in that corpus:
 
 ## Current Gaps
 
-- Some parser paths still use `expect(...)` and can panic on malformed data.
+- Unknown protobuf fields and some metadata sections still need broader cross-device validation.
 - `extra/pb`, `resource/pb`, `template/json`, `document/`, `toc/`, and preview PNG metadata are not modeled yet.
 - There is no fixture-driven integration test suite yet.
-
-See `TODO.md` for a prioritized task list.

@@ -4,10 +4,12 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("Invalid container format")]
     InvalidContainerFormat,
+    #[error("Invalid archive entry name: {0}")]
+    InvalidArchiveEntryName(String),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("JSON error: {error} in JSON string: {json_string}")]
-    Json{
+    Json {
         error: serde_json::Error,
         json_string: String,
     },

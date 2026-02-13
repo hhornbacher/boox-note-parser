@@ -33,15 +33,12 @@ pub struct NoteFile<R: std::io::Read + std::io::Seek> {
 
 impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
     pub fn read(reader: R) -> Result<Self> {
-        let mut container = container::Container::open(reader).expect("Failed to open container");
+        let mut container = container::Container::open(reader)?;
 
         let note_tree = if *container.container_type() == container::ContainerType::MultiNote {
             container.get_file_relative("note_tree", |reader| NoteTree::read(reader))?
         } else {
-            container.get_file_relative(
-                &format!("{}/note/pb/note_info", container.root_path()),
-                |reader| NoteTree::read(reader),
-            )?
+            container.get_file_relative("note/pb/note_info", |reader| NoteTree::read(reader))?
         };
 
         Ok(Self {
@@ -59,10 +56,15 @@ impl<R: std::io::Read + std::io::Seek> NoteFile<R> {
     }
 
     pub fn get_note(&self, note_id: &NoteUuid) -> Option<Note<R>> {
-        self.note_tree
-            .notes
-            .get(note_id)
-            .map(|metadata| Note::new(self.container.clone(), metadata.clone()))
+        self.note_tree.notes.get(note_id).map(|metadata| {
+            let note_path_prefix =
+                if *self.container.container_type() == container::ContainerType::MultiNote {
+                    metadata.note_id.to_simple_string()
+                } else {
+                    String::new()
+                };
+            Note::new(self.container.clone(), metadata.clone(), note_path_prefix)
+        })
     }
 }
 
@@ -78,16 +80,22 @@ impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for NoteFile<R> {
 pub struct Note<R: std::io::Read + std::io::Seek> {
     container: container::Container<R>,
     metadata: NoteMetadata,
+    note_path_prefix: String,
     virtual_doc: Option<VirtualDoc>,
     virtual_pages: Option<HashMap<VirtualPageUuid, VirtualPage>>,
     page_models: Option<HashMap<PageModelUuid, PageModelGroup>>,
 }
 
 impl<R: std::io::Read + std::io::Seek> Note<R> {
-    fn new(container: container::Container<R>, metadata: NoteMetadata) -> Self {
+    fn new(
+        container: container::Container<R>,
+        metadata: NoteMetadata,
+        note_path_prefix: String,
+    ) -> Self {
         Self {
             container,
             metadata,
+            note_path_prefix,
             virtual_doc: None,
             virtual_pages: None,
             page_models: None,
@@ -178,7 +186,7 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
         Some(Page::new(
             self.container.clone(),
             page_id.clone(),
-            self.metadata.note_id.clone(),
+            self.note_path_prefix.clone(),
             virtual_page,
             page_model,
         ))
@@ -187,10 +195,13 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
     pub fn virtual_doc(&mut self) -> Result<&VirtualDoc> {
         if self.virtual_doc.is_none() {
             let note_id = self.metadata.note_id.to_simple_string();
-            let virtual_doc = self.container.get_file_relative(
-                &format!("{}/virtual/doc/pb/{}", note_id, note_id),
-                |reader| VirtualDoc::read(reader),
-            )?;
+            let virtual_doc_path = join_archive_path(
+                &self.note_path_prefix,
+                &format!("virtual/doc/pb/{}", note_id),
+            );
+            let virtual_doc = self
+                .container
+                .get_file_relative(&virtual_doc_path, |reader| VirtualDoc::read(reader))?;
             self.virtual_doc = Some(virtual_doc);
         }
         Ok(self.virtual_doc.as_ref().unwrap())
@@ -198,16 +209,14 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
 
     pub fn virtual_pages(&mut self) -> Result<&HashMap<VirtualPageUuid, VirtualPage>> {
         if self.virtual_pages.is_none() {
-            let note_id = self.metadata.note_id.to_simple_string();
-
             let mut virtual_pages = HashMap::new();
 
-            for virtual_page_path in self
-                .container
-                .list_directory(&format!("{}/virtual/page/pb", note_id))
-            {
+            for virtual_page_path in self.container.list_directory(&join_archive_path(
+                &self.note_path_prefix,
+                "virtual/page/pb",
+            )) {
                 let virtual_page_id =
-                    VirtualPageUuid::from_str(&virtual_page_path.rsplit('/').next().unwrap())?;
+                    VirtualPageUuid::from_str(file_name_from_path(&virtual_page_path)?)?;
                 let virtual_page = self
                     .container
                     .get_file_absolute(&virtual_page_path, |reader| VirtualPage::read(reader))?;
@@ -220,16 +229,14 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
 
     pub fn page_models(&mut self) -> Result<&HashMap<PageModelUuid, PageModelGroup>> {
         if self.page_models.is_none() {
-            let note_id = self.metadata.note_id.to_simple_string();
-
             let mut page_models = HashMap::new();
 
             for page_model_path in self
                 .container
-                .list_directory(&format!("{}/pageModel/pb", note_id))
+                .list_directory(&join_archive_path(&self.note_path_prefix, "pageModel/pb"))
             {
                 let page_model_id =
-                    PageModelUuid::from_str(&page_model_path.rsplit('/').next().unwrap())?;
+                    PageModelUuid::from_str(file_name_from_path(&page_model_path)?)?;
                 let page_model = self
                     .container
                     .get_file_absolute(&page_model_path, |reader| PageModelGroup::read(reader))?;
@@ -251,7 +258,7 @@ impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for Note<R> {
 
 pub struct Page<R: std::io::Read + std::io::Seek> {
     container: container::Container<R>,
-    note_id: NoteUuid,
+    note_path_prefix: String,
     page_id: PageUuid,
     virtual_page: Option<VirtualPage>,
     page_model: PageModel,
@@ -263,14 +270,14 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
     fn new(
         container: container::Container<R>,
         page_id: PageUuid,
-        note_id: NoteUuid,
+        note_path_prefix: String,
         virtual_page: Option<VirtualPage>,
         page_model: PageModel,
     ) -> Self {
         Self {
             container,
             page_id,
-            note_id,
+            note_path_prefix,
             virtual_page,
             page_model,
             shape_groups: None,
@@ -288,23 +295,16 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 
     pub fn shape_groups(&mut self) -> Result<&HashMap<ShapeGroupUuid, ShapeGroup>> {
         if self.shape_groups.is_none() {
-            let note_id = self.note_id.to_simple_string();
             let page_id = self.page_id.to_simple_string();
 
             let mut shape_groups = HashMap::new();
 
-            for shape_group_path in self
-                .container
-                .list_directory(&format!("{}/shape/{}#", note_id, page_id))
-            {
-                let path_tail = shape_group_path.rsplit('/').next().unwrap();
-                let parts = path_tail.split('#').collect::<Vec<_>>();
-                let shape_group_id = ShapeGroupUuid::from_str(parts[1])?;
-                let _timestamp = convert_timestamp_to_datetime(
-                    parts[2].replace(".zip", "").parse::<u64>().map_err(|e| {
-                        Error::InvalidTimestampFormat(format!("Failed to parse timestamp: {}", e))
-                    })?,
-                );
+            let shape_prefix =
+                join_archive_path(&self.note_path_prefix, &format!("shape/{}#", page_id));
+            for shape_group_path in self.container.list_directory(&shape_prefix) {
+                let path_tail = file_name_from_path(&shape_group_path)?;
+                let (shape_group_id, timestamp) = parse_shape_group_file_name(path_tail)?;
+                let _timestamp = convert_timestamp_to_datetime(timestamp)?;
                 let shape_group = self
                     .container
                     .get_file_absolute(&shape_group_path, |reader| ShapeGroup::read(reader))?;
@@ -317,18 +317,17 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 
     pub fn points_files(&mut self) -> Result<&HashMap<PointsUuid, Vec<points::PointsFile>>> {
         if self.points_files.is_none() {
-            let note_id = self.note_id.to_simple_string();
             let page_id = self.page_id.to_simple_string();
 
             let mut points_files = HashMap::new();
 
-            for stroke_path in self
-                .container
-                .list_directory(&format!("{}/point/{}/{}#", note_id, page_id, page_id))
-            {
-                let path_tail = stroke_path.rsplit('/').next().unwrap();
-                let parts = path_tail.split('#').collect::<Vec<_>>();
-                let shape_id = PointsUuid::from_str(parts[1])?;
+            let points_prefix = join_archive_path(
+                &self.note_path_prefix,
+                &format!("point/{}/{}#", page_id, page_id),
+            );
+            for stroke_path in self.container.list_directory(&points_prefix) {
+                let path_tail = file_name_from_path(&stroke_path)?;
+                let shape_id = parse_points_file_name(path_tail)?;
 
                 let file_data = self
                     .container
@@ -426,11 +425,112 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
     }
 }
 
+fn join_archive_path(prefix: &str, tail: &str) -> String {
+    if prefix.is_empty() {
+        tail.to_string()
+    } else {
+        format!("{}/{}", prefix, tail)
+    }
+}
+
+fn file_name_from_path(path: &str) -> Result<&str> {
+    path.rsplit('/')
+        .next()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| Error::InvalidArchiveEntryName(path.to_string()))
+}
+
+fn parse_shape_group_file_name(file_name: &str) -> Result<(ShapeGroupUuid, u64)> {
+    let mut segments = file_name.split('#');
+    let _page_id = segments.next();
+    let shape_group_uuid = segments.next();
+    let timestamp_with_suffix = segments.next();
+    let extra = segments.next();
+
+    if shape_group_uuid.is_none() || timestamp_with_suffix.is_none() || extra.is_some() {
+        return Err(Error::InvalidArchiveEntryName(file_name.to_string()));
+    }
+
+    let shape_group_id = ShapeGroupUuid::from_str(shape_group_uuid.unwrap())?;
+
+    let timestamp_with_suffix = timestamp_with_suffix.unwrap();
+    let timestamp_str = timestamp_with_suffix
+        .strip_suffix(".zip")
+        .ok_or_else(|| Error::InvalidArchiveEntryName(file_name.to_string()))?;
+    let timestamp = timestamp_str.parse::<u64>().map_err(|e| {
+        Error::InvalidTimestampFormat(format!(
+            "Failed to parse timestamp in '{}': {}",
+            file_name, e
+        ))
+    })?;
+
+    Ok((shape_group_id, timestamp))
+}
+
+fn parse_points_file_name(file_name: &str) -> Result<PointsUuid> {
+    let mut segments = file_name.split('#');
+    let _page_id = segments.next();
+    let points_uuid = segments.next();
+    let marker = segments.next();
+    let extra = segments.next();
+
+    if points_uuid.is_none() || marker != Some("points") || extra.is_some() {
+        return Err(Error::InvalidArchiveEntryName(file_name.to_string()));
+    }
+
+    PointsUuid::from_str(points_uuid.unwrap())
+}
+
 impl<R: std::io::Read + std::io::Seek> std::fmt::Debug for Page<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Page")
             .field("virtual_page", &self.virtual_page)
             .field("page_model", &self.page_model)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        id::{PointsUuid, ShapeGroupUuid},
+        parse_points_file_name, parse_shape_group_file_name,
+    };
+
+    #[test]
+    fn parses_shape_group_filename() {
+        let file_name = "ba338e220eda49268c7126a02970a160#537164a1-9052-496a-80d3-a3aadcff339b#1753456222637.zip";
+        let (shape_group_uuid, timestamp) = parse_shape_group_file_name(file_name).unwrap();
+
+        assert_eq!(
+            shape_group_uuid,
+            ShapeGroupUuid::from_str("537164a1-9052-496a-80d3-a3aadcff339b").unwrap()
+        );
+        assert_eq!(timestamp, 1753456222637);
+    }
+
+    #[test]
+    fn rejects_invalid_shape_group_filename() {
+        let file_name =
+            "ba338e220eda49268c7126a02970a160#537164a1-9052-496a-80d3-a3aadcff339b#1753456222637";
+        assert!(parse_shape_group_file_name(file_name).is_err());
+    }
+
+    #[test]
+    fn parses_points_filename() {
+        let file_name =
+            "ba338e220eda49268c7126a02970a160#e858c829-d2f3-4994-b9fb-95bcc8003fa3#points";
+        let points_uuid = parse_points_file_name(file_name).unwrap();
+
+        assert_eq!(
+            points_uuid,
+            PointsUuid::from_str("e858c829-d2f3-4994-b9fb-95bcc8003fa3").unwrap()
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_points_filename() {
+        let file_name = "ba338e220eda49268c7126a02970a160#e858c829-d2f3-4994-b9fb-95bcc8003fa3";
+        assert!(parse_points_file_name(file_name).is_err());
     }
 }
