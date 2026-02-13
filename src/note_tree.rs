@@ -26,12 +26,15 @@ impl NoteTree {
         Ok(Self { notes })
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, note_id: &NoteUuid) -> Option<&NoteMetadata> {
         self.notes.get(note_id)
     }
 }
 
 #[derive(Debug, Clone)]
+// Intentionally keeps reverse-engineered fields that are parsed but not all surfaced yet.
+#[allow(dead_code)]
 pub struct NoteMetadata {
     pub note_id: NoteUuid,
     pub created: DateTime<Utc>,
@@ -91,6 +94,8 @@ impl NoteMetadata {
     }
 }
 
+// Intentionally keeps full reverse-engineered JSON shape for forward format compatibility.
+#[allow(dead_code)]
 mod json {
     use std::collections::HashMap;
 

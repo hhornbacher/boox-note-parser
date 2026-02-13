@@ -85,6 +85,8 @@ mod json {
     use serde::Deserialize;
 
     #[derive(Debug, Clone, Deserialize)]
+    // Retained for future render-scale fidelity work even when not yet consumed.
+    #[allow(dead_code)]
     #[serde(rename_all = "camelCase")]
     pub struct DisplayScale {
         display_scale: f32,

@@ -30,6 +30,98 @@ pub mod shape;
 pub mod template;
 pub mod virtual_page;
 
+#[derive(Debug, Clone)]
+struct QuickPenRenderStyle {
+    pen_type: u8,
+    width: f32,
+    color_argb: u32,
+}
+
+#[derive(Debug, Clone)]
+struct PageStyleContext {
+    default_color_argb: u32,
+    note_pen_width: f32,
+    pen_width_map: HashMap<u8, f32>,
+    quick_pen_styles: Vec<QuickPenRenderStyle>,
+}
+
+impl PageStyleContext {
+    fn from_note_metadata(metadata: &NoteMetadata) -> Self {
+        Self {
+            default_color_argb: metadata.pen_settings.fill_color,
+            note_pen_width: metadata.pen_width,
+            pen_width_map: metadata.pen_settings.pen_width_map.clone(),
+            quick_pen_styles: metadata
+                .pen_settings
+                .quick_pen_list
+                .quick_pens
+                .iter()
+                .map(|pen| QuickPenRenderStyle {
+                    pen_type: pen.type_,
+                    width: pen.width,
+                    color_argb: pen.color,
+                })
+                .collect(),
+        }
+    }
+
+    fn fallback_width(&self) -> f32 {
+        if self.note_pen_width.is_finite() && self.note_pen_width > 0.0 {
+            self.note_pen_width
+        } else {
+            1.0
+        }
+    }
+
+    fn resolve_stroke_width(&self, shape_width: f32, pen_type: Option<u8>) -> f32 {
+        if shape_width.is_finite() && shape_width > 0.0 {
+            return shape_width;
+        }
+
+        if let Some(pen_type) = pen_type {
+            if let Some(width) = self.pen_width_map.get(&pen_type) {
+                if width.is_finite() && *width > 0.0 {
+                    return *width;
+                }
+            }
+        }
+
+        self.fallback_width()
+    }
+
+    fn resolve_stroke_color(
+        &self,
+        pen_type: Option<u8>,
+        shape_width: f32,
+        resolved_width: f32,
+    ) -> u32 {
+        let Some(pen_type) = pen_type else {
+            return self.default_color_argb;
+        };
+
+        let target_width = if shape_width.is_finite() && shape_width > 0.0 {
+            shape_width
+        } else {
+            resolved_width
+        };
+
+        if let Some(best_match) = self
+            .quick_pen_styles
+            .iter()
+            .filter(|pen| pen.pen_type == pen_type)
+            .min_by(|a, b| {
+                (a.width - target_width)
+                    .abs()
+                    .total_cmp(&(b.width - target_width).abs())
+            })
+        {
+            return best_match.color_argb;
+        }
+
+        self.default_color_argb
+    }
+}
+
 pub struct NoteFile<R: std::io::Read + std::io::Seek> {
     container: container::Container<R>,
     note_tree: NoteTree,
@@ -167,6 +259,8 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
     }
 
     pub fn get_page(&mut self, page_id: &PageUuid) -> Option<Page<R>> {
+        let style_context = PageStyleContext::from_note_metadata(&self.metadata);
+
         let virtual_page = {
             let virtual_pages = self
                 .virtual_pages()
@@ -202,6 +296,7 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
             self.note_path_prefix.clone(),
             virtual_page,
             page_model,
+            style_context,
         ))
     }
 
@@ -468,6 +563,7 @@ pub struct Page<R: std::io::Read + std::io::Seek> {
     shape_groups: Option<HashMap<ShapeGroupUuid, ShapeGroup>>,
     points_files: Option<HashMap<PointsUuid, Vec<points::PointsFile>>>,
     template: Option<Option<template::TemplateDescriptor>>,
+    style_context: PageStyleContext,
 }
 
 impl<R: std::io::Read + std::io::Seek> Page<R> {
@@ -478,6 +574,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
         note_path_prefix: String,
         virtual_page: Option<VirtualPage>,
         page_model: PageModel,
+        style_context: PageStyleContext,
     ) -> Self {
         Self {
             container,
@@ -489,6 +586,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             shape_groups: None,
             points_files: None,
             template: None,
+            style_context,
         }
     }
 
@@ -623,51 +721,73 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
             &DrawOptions::new(),
         );
 
-        // Extract shape_groups and points_files into local variables to avoid multiple mutable borrows.
-        let shape_groups = {
-            let sg = self.shape_groups().inspect_err(|_| {
-                log::error!("Failed to get shape groups for page ID: {}", page_id)
-            })?;
-            sg.clone()
-        };
+        self.shape_groups()
+            .inspect_err(|_| log::error!("Failed to get shape groups for page ID: {}", page_id))?;
+        self.points_files()
+            .inspect_err(|_| log::error!("Failed to get points files for page ID: {}", page_id))?;
 
-        let points_files_vec = {
-            let pf = self.points_files().inspect_err(|_| {
-                log::error!("Failed to get points files for page ID: {}", page_id)
-            })?;
-            pf.values().flatten().collect::<Vec<_>>()
-        };
+        let shape_groups = self.shape_groups.as_ref().unwrap();
+        let points_files = self.points_files.as_ref().unwrap();
 
-        for (shape_group_id, shape_group) in &shape_groups {
-            let mut shapes = shape_group.shapes().to_vec();
-            shapes.sort_by(|a, b| a.z_order.cmp(&b.z_order));
-
-            for shape in shapes {
+        for (shape_group_id, shape_group) in shape_groups {
+            for shape in shape_group.shapes() {
                 if let Some(points_id) = shape.points_id {
-                    if let Some(points) = points_files_vec
-                        .iter()
-                        .find(|pf| pf.header().points_id == points_id)
-                    {
-                        points
-                            .get_stroke(&shape.stroke_id)
+                    if let Some(points_candidates) = points_files.get(&points_id) {
+                        let stroke = points_candidates
+                            .iter()
+                            .find_map(|points_file| points_file.get_stroke(&shape.stroke_id))
                             .ok_or_else(|| {
                                 log::error!("Failed to get stroke for shape");
                                 Error::StrokeNotFound
-                            })
-                            .and_then(|stroke| {
-                                log::debug!("Rendering stroke for shape");
-                                log::debug!(
-                                    "Shape Group ID: {}, Stroke ID: {}",
-                                    shape_group_id.to_hyphenated_string(),
-                                    shape.stroke_id.to_hyphenated_string()
-                                );
-                                log::debug!("Shape: {:#x?}", shape);
-                                stroke.render(
-                                    &mut draw_target,
-                                    &draw_options,
-                                    &StrokeStyle::default(),
-                                )
                             })?;
+
+                        let pen_type = infer_pen_type(shape.z_order);
+                        let stroke_width = self
+                            .style_context
+                            .resolve_stroke_width(shape.stroke_width, pen_type);
+                        let stroke_color_argb = self.style_context.resolve_stroke_color(
+                            pen_type,
+                            shape.stroke_width,
+                            stroke_width,
+                        );
+
+                        let mut stroke_style = StrokeStyle::default();
+                        stroke_style.width = stroke_width;
+
+                        if let Some(line_style) = shape.line_style.as_ref() {
+                            stroke_style.dash_offset = if line_style.phase.is_finite() {
+                                line_style.phase
+                            } else {
+                                0.0
+                            };
+                            stroke_style.dash_array = match line_style.type_ {
+                                0 => Vec::new(),
+                                1 => vec![4.0 * stroke_width, 2.0 * stroke_width],
+                                2 => vec![stroke_width, 1.5 * stroke_width],
+                                3 => vec![
+                                    4.0 * stroke_width,
+                                    2.0 * stroke_width,
+                                    stroke_width,
+                                    2.0 * stroke_width,
+                                ],
+                                _ => Vec::new(),
+                            };
+                        }
+
+                        log::debug!("Rendering stroke for shape");
+                        log::debug!(
+                            "Shape Group ID: {}, Stroke ID: {}",
+                            shape_group_id.to_hyphenated_string(),
+                            shape.stroke_id.to_hyphenated_string()
+                        );
+                        log::debug!("Shape: {:#x?}", shape);
+
+                        stroke.render_with_color(
+                            &mut draw_target,
+                            &draw_options,
+                            &stroke_style,
+                            argb_to_raqote_color(stroke_color_argb),
+                        )?;
                     } else {
                         log::warn!(
                             "No points files found for shape group: {}",
@@ -680,6 +800,21 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 
         Ok(draw_target)
     }
+}
+
+fn argb_to_raqote_color(color_argb: u32) -> raqote::Color {
+    let [a, r, g, b] = color_argb.to_be_bytes();
+    raqote::Color::new(a, r, g, b)
+}
+
+fn infer_pen_type(z_order: i64) -> Option<u8> {
+    if let Ok(pen_type) = u8::try_from(z_order) {
+        return Some(pen_type);
+    }
+
+    // In observed samples this field is zigzag-encoded in a way that often decodes to negatives.
+    let zigzag_encoded = ((z_order << 1) ^ (z_order >> 63)) as u64;
+    u8::try_from(zigzag_encoded).ok()
 }
 
 fn join_archive_path(prefix: &str, tail: &str) -> String {

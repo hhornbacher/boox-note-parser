@@ -4,7 +4,7 @@ use byteorder::{BE, ReadBytesExt};
 use raqote::{DrawOptions, DrawTarget, PathBuilder, Source, StrokeStyle};
 
 use crate::{
-    error::{Error, Result},
+    error::Result,
     id::{PageUuid, PointsUuid, StrokeUuid},
 };
 
@@ -25,14 +25,12 @@ impl Header {
         let mut buffer = [0; 36];
 
         reader.read_exact(&mut buffer)?;
-        let page_id_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
-        let page_id = PageUuid::from_str(page_id_str.trim())?;
+        let page_id = PageUuid::from_byte_str(&buffer)?;
 
         // Clear buffer for the next read
         buffer.fill(0);
         reader.read_exact(&mut buffer)?;
-        let points_id_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
-        let points_id = PointsUuid::from_str(points_id_str)?;
+        let points_id = PointsUuid::from_byte_str(&buffer)?;
 
         Ok(Self {
             version,
@@ -59,8 +57,7 @@ impl PointsTableEntry {
 
         let mut buffer = [0; 36];
         reader.read_exact(&mut buffer)?;
-        let stroke_uuid_str = str::from_utf8(&buffer).map_err(|e| Error::UuidInvalidUtf8(e))?;
-        let stroke_uuid = StrokeUuid::from_str(stroke_uuid_str)?;
+        let stroke_uuid = StrokeUuid::from_byte_str(&buffer)?;
 
         let start_addr = reader.read_u32::<BE>()?;
         let packed = reader.read_u32::<BE>()?;
@@ -129,6 +126,21 @@ impl Stroke {
         draw_options: &DrawOptions,
         stroke_style: &StrokeStyle,
     ) -> Result<()> {
+        self.render_with_color(
+            draw_target,
+            draw_options,
+            stroke_style,
+            raqote::Color::new(255, 0, 0, 0),
+        )
+    }
+
+    pub fn render_with_color(
+        &self,
+        draw_target: &mut DrawTarget,
+        draw_options: &DrawOptions,
+        stroke_style: &StrokeStyle,
+        color: raqote::Color,
+    ) -> Result<()> {
         if self.points.is_empty() {
             log::warn!("No points to draw for stroke");
             return Ok(());
@@ -148,7 +160,7 @@ impl Stroke {
 
         draw_target.stroke(
             &path.finish(),
-            &Source::Solid(raqote::Color::new(255, 0, 0, 0).into()),
+            &Source::Solid(color.into()),
             stroke_style,
             draw_options,
         );
@@ -193,5 +205,51 @@ impl PointsFile {
 
     pub fn get_stroke(&self, stroke_id: &StrokeUuid) -> Option<&Stroke> {
         self.points.get(stroke_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use byteorder::{BE, WriteBytesExt};
+
+    use super::{Header, PointsTableEntry};
+    use crate::id::{PageUuid, PointsUuid, StrokeUuid};
+
+    #[test]
+    fn header_parses_padded_uuid_fields() {
+        let mut bytes = Vec::new();
+        bytes.write_u32::<BE>(1).unwrap();
+        bytes.extend_from_slice(b"ba338e220eda49268c7126a02970a160    ");
+        bytes.extend_from_slice(b"e858c829-d2f3-4994-b9fb-95bcc8003fa3");
+
+        let header = Header::read(std::io::Cursor::new(bytes)).unwrap();
+
+        assert_eq!(header.version, 1);
+        assert_eq!(
+            header.page_id,
+            PageUuid::from_str("ba338e220eda49268c7126a02970a160").unwrap()
+        );
+        assert_eq!(
+            header.points_id,
+            PointsUuid::from_str("e858c829-d2f3-4994-b9fb-95bcc8003fa3").unwrap()
+        );
+    }
+
+    #[test]
+    fn points_table_entry_parses_padded_stroke_id() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"92c1ab734ec14f70907adc11dcb0806d    ");
+        bytes.write_u32::<BE>(64).unwrap();
+        bytes.write_u32::<BE>((3 << 4) | 5).unwrap();
+
+        let entry = PointsTableEntry::read(std::io::Cursor::new(bytes)).unwrap();
+
+        assert_eq!(
+            entry.stroke_id,
+            StrokeUuid::from_str("92c1ab73-4ec1-4f70-907a-dc11dcb0806d").unwrap()
+        );
+        assert_eq!(entry.start_addr, 64);
+        assert_eq!(entry.point_count, 3);
+        assert_eq!(entry.flag, 5);
     }
 }

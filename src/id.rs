@@ -1,7 +1,6 @@
 use std::{
-    cell::LazyCell,
     collections::{HashMap, HashSet},
-    sync::{LazyLock, Mutex, OnceLock},
+    sync::{Mutex, OnceLock},
 };
 
 trait CheckUuid {
@@ -10,6 +9,10 @@ trait CheckUuid {
 }
 static KNOWN_UUIDS: OnceLock<Mutex<HashMap<uuid::Uuid, Vec<Box<dyn CheckUuid + Send + Sync>>>>> =
     OnceLock::new();
+
+fn normalized_uuid_input(s: &str) -> &str {
+    s.trim_matches(|c: char| c.is_ascii_whitespace() || c == '\0')
+}
 
 fn check_uuid(id: impl CheckUuid + Send + Sync + 'static) {
     // Lock the mutex and clear the HashMap
@@ -51,9 +54,17 @@ macro_rules! implement_uuid {
             }
 
             pub fn from_str(s: &str) -> crate::error::Result<Self> {
-                let id = Self(uuid::Uuid::parse_str(s).inspect_err(|e| {
-                    log::error!("Failed to parse UUID from byte string: {}", s);
-                })?);
+                let normalized = normalized_uuid_input(s);
+                let parsed = uuid::Uuid::parse_str(normalized).map_err(|e| {
+                    log::error!(
+                        "Failed to parse UUID from string '{}'(normalized '{}'): {}",
+                        s.escape_debug(),
+                        normalized.escape_debug(),
+                        e
+                    );
+                    e
+                })?;
+                let id = Self(parsed);
                 check_uuid(id.clone());
                 Ok(id)
             }
@@ -61,11 +72,7 @@ macro_rules! implement_uuid {
             pub fn from_byte_str(s: &[u8]) -> crate::error::Result<Self> {
                 let s =
                     std::str::from_utf8(s).map_err(|e| crate::error::Error::UuidInvalidUtf8(e))?;
-                let id = Self(uuid::Uuid::parse_str(s).inspect_err(|e| {
-                    log::error!("Failed to parse UUID from byte string: {}", s);
-                })?);
-                check_uuid(id.clone());
-                Ok(id)
+                Self::from_str(s)
             }
 
             pub fn to_simple_string(&self) -> String {
@@ -147,12 +154,15 @@ impl<'de> serde::Deserialize<'de> for PenId {
         D: serde::Deserializer<'de>,
     {
         let id: String = serde::Deserialize::deserialize(deserializer)?;
-        if id.len() == 32 {
-            // UUID format
-            let uuid = PenUuid::from_str(&id).map_err(serde::de::Error::custom)?;
+        let trimmed = id.trim();
+
+        if let Ok(uuid) = PenUuid::from_str(trimmed) {
             return Ok(Self::from_uuid(uuid));
         }
-        Ok(Self::from_id(id.parse().map_err(serde::de::Error::custom)?))
+
+        Ok(Self::from_id(
+            trimmed.parse().map_err(serde::de::Error::custom)?,
+        ))
     }
 }
 
@@ -178,5 +188,48 @@ impl<'de> serde::Deserialize<'de> for LayerId {
     {
         let id: u32 = serde::Deserialize::deserialize(deserializer)?;
         Ok(Self(id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NoteUuid, PenId, StrokeUuid};
+
+    #[test]
+    fn uuid_from_str_accepts_whitespace_padding() {
+        let id = NoteUuid::from_str("  7a960ca753b0420ea2d5b88d57f7bf62  ").unwrap();
+        assert_eq!(id.to_simple_string(), "7a960ca753b0420ea2d5b88d57f7bf62");
+    }
+
+    #[test]
+    fn uuid_from_str_accepts_hyphenated_uuid() {
+        let id = NoteUuid::from_str("7a960ca7-53b0-420e-a2d5-b88d57f7bf62").unwrap();
+        assert_eq!(
+            id.to_hyphenated_string(),
+            "7a960ca7-53b0-420e-a2d5-b88d57f7bf62"
+        );
+    }
+
+    #[test]
+    fn uuid_from_byte_str_accepts_null_and_whitespace_padding() {
+        let raw = b"92c1ab73-4ec1-4f70-907a-dc11dcb0806d\0\0  ";
+        let id = StrokeUuid::from_byte_str(raw).unwrap();
+        assert_eq!(
+            id.to_hyphenated_string(),
+            "92c1ab73-4ec1-4f70-907a-dc11dcb0806d"
+        );
+    }
+
+    #[test]
+    fn pen_id_deserializes_uuid_forms_and_numeric_ids() {
+        let simple: PenId = serde_json::from_str("\"abb5f970105848349b5dfa80d7b0fa5b\"").unwrap();
+        assert!(matches!(simple, PenId::Uuid(_)));
+
+        let hyphenated: PenId =
+            serde_json::from_str("\" abb5f970-1058-4834-9b5d-fa80d7b0fa5b \"").unwrap();
+        assert!(matches!(hyphenated, PenId::Uuid(_)));
+
+        let numeric: PenId = serde_json::from_str("\" 1 \"").unwrap();
+        assert_eq!(numeric, PenId::Id(1));
     }
 }
