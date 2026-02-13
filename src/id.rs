@@ -114,6 +114,7 @@ implement_uuid!(PageModelUuid);
 implement_uuid!(PenUuid);
 implement_uuid!(ShapeGroupUuid);
 implement_uuid!(PointsUuid);
+implement_uuid!(ResourceUuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PenId {

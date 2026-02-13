@@ -31,7 +31,7 @@ impl ShapeGroup {
             .collect::<crate::error::Result<_>>()?;
         Ok(Self { shapes })
     }
-    
+
     pub fn shapes(&self) -> &[Shape] {
         &self.shapes
     }

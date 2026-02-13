@@ -37,8 +37,61 @@ fn main() {
         println!("    Pen Type: {}", note.pen_type());
         println!("    Scale factor: {}", note.scale_factor());
         println!("    Fill Color: {:08x}", note.fill_color());
-        println!("    Pen Settings Fill Color: {:08x}", note.pen_settings_fill_color());
-        println!("    Pen Settings Graphics Shape Color: {:08x}", note.pen_settings_graphics_shape_color());
+        println!(
+            "    Pen Settings Fill Color: {:08x}",
+            note.pen_settings_fill_color()
+        );
+        println!(
+            "    Pen Settings Graphics Shape Color: {:08x}",
+            note.pen_settings_graphics_shape_color()
+        );
+
+        match note
+            .extra_metadata()
+            .expect("Failed to parse extra metadata")
+        {
+            Some(extra) => {
+                println!("    Extra Metadata:");
+                println!("      Flag: {}", extra.flag);
+                println!("      App Build: {}", extra.app_build);
+                println!("      Key: {}", extra.key);
+                println!("      Value: {}", extra.value);
+            }
+            None => println!("    Extra Metadata: none"),
+        }
+
+        let templates = note.templates().expect("Failed to parse templates");
+        println!("    Templates:");
+        println!("      Default: {}", templates.default.is_some());
+        println!("      Per-page count: {}", templates.by_page.len());
+        println!("      Other IDs count: {}", templates.by_other_id.len());
+
+        let resources = note.resources().expect("Failed to parse resources");
+        println!("    Resources: {}", resources.len());
+        for resource in resources {
+            let payload_kind = match &resource.payload {
+                boox_note_parser::resource::ResourcePayload::Empty => "Empty",
+                boox_note_parser::resource::ResourcePayload::Raw(_) => "Raw",
+            };
+            println!(
+                "      {} ({} bytes, payload: {})",
+                resource.path, resource.size_bytes, payload_kind
+            );
+        }
+
+        let assets = note
+            .assets_metadata()
+            .expect("Failed to discover note assets metadata");
+        println!("    TOC exists: {}", assets.toc.exists);
+        println!("    TOC file count: {}", assets.toc.files.len());
+        if let Some(preview) = &assets.preview {
+            println!(
+                "    Preview: {} ({} bytes)",
+                preview.path, preview.size_bytes
+            );
+        } else {
+            println!("    Preview: none");
+        }
 
         let virtual_doc = note.virtual_doc().expect("No virtual doc found for note");
         println!(
@@ -99,6 +152,17 @@ fn list_pages<R: std::io::Read + std::io::Seek>(note: &mut Note<R>, pages: Vec<P
             println!("          Page Number: {}", virtual_page.page_number);
         } else {
             println!("        No virtual page found for this page.");
+        }
+
+        if let Some(template) = page.template().expect("Failed to load page template") {
+            println!(
+                "        Template: type={}, subtype={}, resource={}",
+                template.type_,
+                template.properties.sub_type,
+                template.properties.resource_attr.res_name
+            );
+        } else {
+            println!("        Template: none");
         }
     }
 }

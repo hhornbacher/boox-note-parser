@@ -98,6 +98,27 @@ impl<R: std::io::Read + std::io::Seek> Container<R> {
             .collect()
     }
 
+    pub fn has_entry_relative(&self, path: &str) -> bool {
+        let normalized_path = path.trim_start_matches('/');
+        let prefixed_path = self.get_file_path(normalized_path);
+        let directory_path = prefixed_path.trim_end_matches('/');
+        let directory_prefix = format!("{}/", directory_path);
+
+        self.archive.read().unwrap().file_names().any(|name| {
+            name == prefixed_path
+                || name == directory_path
+                || name == directory_prefix
+                || name.starts_with(&directory_prefix)
+        })
+    }
+
+    pub fn file_size_relative(&mut self, path: &str) -> Result<u64> {
+        let file_path = self.get_file_path(path);
+        let mut archive = self.archive.write().unwrap();
+        let file = archive.by_name(&file_path).map_err(Error::Zip)?;
+        Ok(file.size())
+    }
+
     pub fn get_file_relative<T, F>(&mut self, path: &str, file_op_fn: F) -> Result<T>
     where
         F: FnOnce(zip::read::ZipFile<'_, R>) -> Result<T>,
@@ -145,8 +166,12 @@ mod tests {
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
         for file_name in file_names {
-            writer.start_file(file_name, options).unwrap();
-            writer.write_all(b"x").unwrap();
+            if file_name.ends_with('/') {
+                writer.add_directory(*file_name, options).unwrap();
+            } else {
+                writer.start_file(file_name, options).unwrap();
+                writer.write_all(b"x").unwrap();
+            }
         }
 
         writer.finish().unwrap()
@@ -219,5 +244,24 @@ mod tests {
             point_files,
             vec!["backup/note/point/page/page#points#points".to_string()]
         );
+    }
+
+    #[test]
+    fn has_entry_relative_detects_explicit_directory_entry() {
+        let reader = build_archive(&["backup/note_tree", "backup/toc/"]);
+        let container = Container::open(reader).unwrap();
+
+        assert!(container.has_entry_relative("toc"));
+        assert!(container.has_entry_relative("toc/"));
+        assert!(!container.has_entry_relative("toc/pb"));
+    }
+
+    #[test]
+    fn has_entry_relative_detects_implicit_directory_from_child_file() {
+        let reader = build_archive(&["backup/note_tree", "backup/toc/pb/index"]);
+        let container = Container::open(reader).unwrap();
+
+        assert!(container.has_entry_relative("toc"));
+        assert!(container.has_entry_relative("toc/pb"));
     }
 }
