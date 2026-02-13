@@ -1,3 +1,5 @@
 /target
 *.note
 /*.png
+/samples_extracted
+/TODO.md
