@@ -120,7 +120,10 @@ fn list_pages<R: std::io::Read + std::io::Seek>(note: &mut Note<R>, pages: Vec<P
     for page_id in &pages {
         println!("      Page ID: {}", page_id.to_hyphenated_string());
 
-        let mut page = note.get_page(page_id).expect("Failed to get page");
+        let Some(mut page) = note.get_page(page_id) else {
+            println!("        (no page model — detached/orphan)");
+            continue;
+        };
 
         let draw_target = page.render().expect("Failed to render page");
 
