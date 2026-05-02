@@ -156,13 +156,13 @@ impl<'de> serde::Deserialize<'de> for PenId {
         let id: String = serde::Deserialize::deserialize(deserializer)?;
         let trimmed = id.trim();
 
-        if let Ok(uuid) = PenUuid::from_str(trimmed) {
-            return Ok(Self::from_uuid(uuid));
+        // Try numeric first to avoid logging an error for the common short-int case.
+        if let Ok(num) = trimmed.parse::<u32>() {
+            return Ok(Self::from_id(num));
         }
 
-        Ok(Self::from_id(
-            trimmed.parse().map_err(serde::de::Error::custom)?,
-        ))
+        let uuid = PenUuid::from_str(trimmed).map_err(serde::de::Error::custom)?;
+        Ok(Self::from_uuid(uuid))
     }
 }
 
