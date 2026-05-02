@@ -125,15 +125,24 @@ fn list_pages<R: std::io::Read + std::io::Seek>(note: &mut Note<R>, pages: Vec<P
             continue;
         };
 
-        let draw_target = page.render().expect("Failed to render page");
+        if page.is_empty().expect("Failed to inspect page contents") {
+            log::warn!(
+                "Skipping render for empty page {} in note {:?}",
+                page_id.to_hyphenated_string(),
+                note.name()
+            );
+            println!("        (empty page — skipped render)");
+        } else {
+            let draw_target = page.render().expect("Failed to render page");
 
-        draw_target
-            .write_png(format!(
-                "{}_{}.png",
-                note.name(),
-                page_id.to_simple_string()
-            ))
-            .expect("Failed to write PNG");
+            draw_target
+                .write_png(format!(
+                    "{}_{}.png",
+                    note.name(),
+                    page_id.to_simple_string()
+                ))
+                .expect("Failed to write PNG");
+        }
 
         let page_model = page.page_model();
         println!("        Page Model:",);

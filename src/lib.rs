@@ -768,6 +768,15 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
         Ok(self.points_files.as_ref().unwrap())
     }
 
+    /// Returns `true` when the page has no renderable strokes — either no shape
+    /// groups exist for it, or every shape group is empty. Lazily loads shape
+    /// group metadata if it has not been read yet.
+    pub fn is_empty(&mut self) -> Result<bool> {
+        self.shape_groups()?;
+        let shape_groups = self.shape_groups.as_ref().unwrap();
+        Ok(shape_groups.values().all(|group| group.shapes().is_empty()))
+    }
+
     pub fn render(&mut self) -> Result<DrawTarget> {
         let page_id = self.page_id.to_hyphenated_string();
         let width = self.page_model.dimensions.right - self.page_model.dimensions.left;
