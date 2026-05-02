@@ -95,6 +95,7 @@ mod json {
     pub struct DisplayScale {
         display_scale: f32,
         max_pressure: f32,
+        #[serde(default)]
         revised_display_scale: f32,
         source: u32,
     }

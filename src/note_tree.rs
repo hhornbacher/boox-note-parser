@@ -168,6 +168,7 @@ mod json {
         pub current_layer_id: LayerId,
         pub height: u32,
         pub last_modify_time: u64,
+        #[serde(default)]
         pub layer_count: u32,
         pub layer_list: Vec<Layer>,
         pub width: u32,
@@ -239,8 +240,14 @@ mod json {
         pub height: f32,
         pub res_id: String,
         pub res_index: u32,
+        // `title` is absent on PDF-backed page backgrounds (e.g. notes built from a PDF
+        // template). Treat as empty when missing.
+        #[serde(default)]
         pub title: String,
         pub type_: u32,
+        // Older firmware emits `value`; newer firmware (also PDF-backed pages) emits
+        // `content` for the same field. Accept either, default to empty.
+        #[serde(default, alias = "content")]
         pub value: String,
         pub visible: bool,
         pub width: f32,

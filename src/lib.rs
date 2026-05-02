@@ -517,9 +517,19 @@ impl<R: std::io::Read + std::io::Seek> Note<R> {
                 continue;
             };
 
-            let descriptor = self.container.get_file_absolute(&template_path, |reader| {
-                template::TemplateDescriptor::read(reader)
+            // Some real-world notes contain zero-byte template_json entries (placeholders
+            // for templates that were never materialised on the device). Skip them rather
+            // than failing the whole note's parse.
+            let bytes = self.container.get_file_absolute(&template_path, |mut reader| {
+                let mut buf = Vec::new();
+                reader.read_to_end(&mut buf).map_err(Error::Io)?;
+                Ok(buf)
             })?;
+            if bytes.is_empty() {
+                continue;
+            }
+            let descriptor =
+                template::TemplateDescriptor::read(std::io::Cursor::new(bytes))?;
             templates.insert_if_absent(key, descriptor);
         }
 
@@ -643,10 +653,17 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                     continue;
                 }
 
+                // Skip zero-byte template placeholders (see load_templates_from_directory).
+                let bytes = self.container.get_file_relative(&template_path, |mut reader| {
+                    let mut buf = Vec::new();
+                    reader.read_to_end(&mut buf).map_err(Error::Io)?;
+                    Ok(buf)
+                })?;
+                if bytes.is_empty() {
+                    continue;
+                }
                 matched_template =
-                    Some(self.container.get_file_relative(&template_path, |reader| {
-                        template::TemplateDescriptor::read(reader)
-                    })?);
+                    Some(template::TemplateDescriptor::read(std::io::Cursor::new(bytes))?);
                 break;
             }
 
@@ -658,19 +675,27 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 
     pub fn shape_groups(&mut self) -> Result<&HashMap<ShapeGroupUuid, ShapeGroup>> {
         if self.shape_groups.is_none() {
-            let page_id = self.page_id.to_simple_string();
+            // Boox stores shape files keyed by either the simple or hyphenated page UUID,
+            // sometimes mixing both forms within the same note. Try both prefixes.
+            let page_id_simple = self.page_id.to_simple_string();
+            let page_id_hyphenated = self.page_id.to_hyphenated_string();
 
             let mut shape_groups = HashMap::new();
             let mut shape_group_entries = Vec::new();
 
-            let shape_prefix =
-                join_archive_path(&self.note_path_prefix, &format!("shape/{}#", page_id));
-            for (index, shape_group_path) in self
-                .container
-                .list_directory(&shape_prefix)
-                .into_iter()
-                .enumerate()
-            {
+            let shape_prefixes = [
+                join_archive_path(&self.note_path_prefix, &format!("shape/{}#", page_id_simple)),
+                join_archive_path(
+                    &self.note_path_prefix,
+                    &format!("shape/{}#", page_id_hyphenated),
+                ),
+            ];
+            let shape_paths: Vec<String> = shape_prefixes
+                .iter()
+                .flat_map(|prefix| self.container.list_directory(prefix))
+                .collect();
+
+            for (index, shape_group_path) in shape_paths.into_iter().enumerate() {
                 let path_tail = file_name_from_path(&shape_group_path)?;
                 let (shape_group_id, timestamp) = parse_shape_group_file_name(path_tail)?;
                 let _timestamp = convert_timestamp_to_datetime(timestamp)?;
@@ -697,15 +722,28 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 
     pub fn points_files(&mut self) -> Result<&HashMap<PointsUuid, Vec<points::PointsFile>>> {
         if self.points_files.is_none() {
-            let page_id = self.page_id.to_simple_string();
+            // Mirror the simple/hyphenated page-id duality used by the shape directory.
+            let page_id_simple = self.page_id.to_simple_string();
+            let page_id_hyphenated = self.page_id.to_hyphenated_string();
 
             let mut points_files = HashMap::new();
 
-            let points_prefix = join_archive_path(
-                &self.note_path_prefix,
-                &format!("point/{}/{}#", page_id, page_id),
-            );
-            for stroke_path in self.container.list_directory(&points_prefix) {
+            let points_prefixes = [
+                join_archive_path(
+                    &self.note_path_prefix,
+                    &format!("point/{}/{}#", page_id_simple, page_id_simple),
+                ),
+                join_archive_path(
+                    &self.note_path_prefix,
+                    &format!("point/{}/{}#", page_id_hyphenated, page_id_hyphenated),
+                ),
+            ];
+            let stroke_paths: Vec<String> = points_prefixes
+                .iter()
+                .flat_map(|prefix| self.container.list_directory(prefix))
+                .collect();
+
+            for stroke_path in stroke_paths {
                 let path_tail = file_name_from_path(&stroke_path)?;
                 let shape_id = parse_points_file_name(path_tail)?;
 
@@ -789,8 +827,13 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
         }
 
         // Render in layer-list order from page model. On observed pages this preserves
-        // highlighter-vs-ink stacking without hardcoding pen-type semantics.
+        // highlighter-vs-ink stacking without hardcoding pen-type semantics. Within a
+        // layer, draw translucent strokes (highlighters/markers) before opaque ones so
+        // markers sit behind ink rather than on top.
+        const ALPHA_PASS_TRANSLUCENT: u8 = 0;
+        const ALPHA_PASS_OPAQUE: u8 = 1;
         for layer_id in layer_draw_order {
+          for alpha_pass in [ALPHA_PASS_TRANSLUCENT, ALPHA_PASS_OPAQUE] {
             let mut shape_index = 0usize;
             for shape_group_id in shape_group_draw_order {
                 let Some(shape_group) = shape_groups.get(shape_group_id) else {
@@ -855,12 +898,23 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                                     Error::StrokeNotFound
                                 })?;
 
-                            let stroke_color_argb = self.style_context.resolve_stroke_color(
+                            let resolved_argb = self.style_context.resolve_stroke_color(
                                 shape.unknown as u32,
                                 pen_type,
                                 shape.stroke_width,
                                 stroke_width,
                             );
+                            let stroke_color_argb = apply_pen_type_alpha(resolved_argb, pen_type);
+
+                            let stroke_alpha = (stroke_color_argb >> 24) as u8;
+                            let is_translucent = stroke_alpha < 255;
+                            let pass_matches = match alpha_pass {
+                                ALPHA_PASS_TRANSLUCENT => is_translucent,
+                                _ => !is_translucent,
+                            };
+                            if !pass_matches {
+                                continue;
+                            }
 
                             log::debug!("Rendering stroke for shape");
                             log::debug!(
@@ -885,6 +939,7 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
                     }
                 }
             }
+          }
         }
 
         Ok(draw_target)
@@ -894,6 +949,25 @@ impl<R: std::io::Read + std::io::Seek> Page<R> {
 fn argb_to_raqote_color(color_argb: u32) -> raqote::Color {
     let [a, r, g, b] = color_argb.to_be_bytes();
     raqote::Color::new(a, r, g, b)
+}
+
+/// Pen type observed in NoteAir4C data for the highlighter ("marker") tool. Strokes of
+/// this type are stored with fully opaque ARGB on disk, but the device renders them
+/// translucently so ink underneath shows through.
+const PEN_TYPE_HIGHLIGHTER: u8 = 15;
+
+/// Highlighter rendering alpha. 0x80 ≈ 50% opacity matches the Boox marker tool's
+/// observed on-device appearance closely enough that ink remains legible underneath.
+const HIGHLIGHTER_ALPHA: u8 = 0x80;
+
+/// Apply firmware-side pen-type semantics that aren't captured in the per-stroke ARGB.
+/// Currently this only adjusts the highlighter's alpha; other pen types are unchanged.
+fn apply_pen_type_alpha(color_argb: u32, pen_type: Option<u8>) -> u32 {
+    if pen_type == Some(PEN_TYPE_HIGHLIGHTER) {
+        (color_argb & 0x00FF_FFFF) | ((HIGHLIGHTER_ALPHA as u32) << 24)
+    } else {
+        color_argb
+    }
 }
 
 fn join_archive_path(prefix: &str, tail: &str) -> String {
