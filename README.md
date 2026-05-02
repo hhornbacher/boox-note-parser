@@ -48,6 +48,13 @@ You can also run the example inspector:
 cargo run --example inspector -- <path-to-note-file>
 ```
 
+Or the bundled `render` CLI binary, which writes one PNG per page without
+the inspector's metadata dump:
+
+```bash
+cargo run --bin render -- <path-to-note-file.note> [output_dir]
+```
+
 ## Try It Out
 
 ### CLI Track (Inspector Example)
@@ -63,11 +70,25 @@ Expected behavior:
 - Prints note metadata (IDs, names, timestamps, pen settings).
 - Prints template/resource/extra/asset metadata (`Templates:`, `Resources:`, `TOC exists:`, `Preview:`).
 - Renders pages and writes PNG files to the current directory.
+- Skips pages with no shapes (logs a `WARN` and prints `(empty page — skipped render)`).
+- Skips detached page entries that have no page model (prints `(no page model — detached/orphan)`).
 
 Quick verification checks:
 
 - Confirm output includes lines for template/resource/assets.
 - Confirm generated PNGs are present in your working directory.
+
+### CLI Track (`render` Binary)
+
+For batch rendering without inspection output:
+
+```bash
+cargo run --bin render -- <path-to-note-file.note> [output_dir]
+```
+
+Writes `<note_name>_<note_id>_<page_id>.png` for every active, reserved, and
+detached page. The output directory defaults to the current working directory
+and is created if missing.
 
 ### Library Track (Use the Crate in Your Own Binary)
 

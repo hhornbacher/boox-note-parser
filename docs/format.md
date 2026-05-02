@@ -166,6 +166,15 @@ Implementation: [`src/points.rs`](../src/points.rs)
 - `pageModel/pb` file count is lower than virtual-page count in larger notes (containers can hold multiple page models).
 - `render_scale_json` inside shapes may include extra keys such as `tiltConfig` not modeled in strongly typed structs.
 - Background labels are localized (for example `Blank`, `Leer`), so consumer logic should not hardcode English titles.
+- `PageBackground` JSON may emit `value`, `content`, or both keys side-by-side for the same logical slot. Older firmware emits only `value`; PDF-backed pages emit only `content`; many newer notes carry both. Treat each as independently optional.
+- `PageBackground.title` is absent on PDF-backed page backgrounds.
+- `pageInfoMap[*].layerCount` (`canvas_state` JSON) is missing on some firmware versions; treat as optional and default to `0`.
+- `render_scale_json.revisedDisplayScale` is absent on some shapes; treat as optional.
+- `template/json/<page_id>.template_json` files may exist as zero-byte placeholders; skip empty payloads instead of attempting to parse.
+- Shape and points archive paths may key the page UUID as either the simple (32 hex chars) or hyphenated form, sometimes mixing both within the same note. Probe both prefix shapes (`shape/<simple>#…`, `shape/<hyphenated>#…`).
+- Highlighter strokes (`pen_type == 15`) store an opaque ARGB color but the device renders them translucent and behind ink. Consumers reproducing the on-device look need to apply both alpha and z-order overrides.
+- `PenId` JSON values are usually UUID strings but can also be small integers (decimal) for built-in quick pens.
+- `detached_pages_json` (tag 44) may list page IDs that have no entry in `pageModel/pb/*`. Treat them as orphan references.
 
 ## Open Questions
 
