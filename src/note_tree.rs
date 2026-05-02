@@ -246,9 +246,12 @@ mod json {
         pub title: String,
         pub type_: u32,
         // Older firmware emits `value`; newer firmware (also PDF-backed pages) emits
-        // `content` for the same field. Accept either, default to empty.
-        #[serde(default, alias = "content")]
+        // `content` for the same field. Many notes carry both keys simultaneously, so
+        // accept either independently and default to empty when missing.
+        #[serde(default)]
         pub value: String,
+        #[serde(default)]
+        pub content: String,
         pub visible: bool,
         pub width: f32,
     }
